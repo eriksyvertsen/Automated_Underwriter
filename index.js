@@ -2,11 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { connectMongoDB } = require('./config/db');
 const { errorHandler } = require('./utils/errorHandler');
 
 // Initialize Express
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
@@ -35,11 +35,47 @@ app.get('/', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check available at http://localhost:${PORT}/health`);
-});
+// Database connection and server start
+async function startServer() {
+  try {
+    // Connect to MongoDB first
+    const db = await connectMongoDB();
+
+    // Start the server regardless of DB connection status
+    // This allows the app to function with Replit Database as fallback
+    const PORT = process.env.PORT || 3000;
+    const server = app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Health check available at http://localhost:${PORT}/health`);
+    });
+
+    // Add server close method for testing
+    app.close = () => {
+      return new Promise((resolve, reject) => {
+        server.close((err) => {
+          if (err) {
+            console.error('Error closing server:', err);
+            reject(err);
+          } else {
+            console.log('Server closed successfully');
+            resolve();
+          }
+        });
+      });
+    };
+
+    // Return the server instance for testing
+    return server;
+  } catch (error) {
+    console.error('Error starting server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server if this file is run directly
+if (require.main === module) {
+  startServer();
+}
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {

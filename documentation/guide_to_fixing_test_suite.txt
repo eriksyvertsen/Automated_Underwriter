@@ -1,0 +1,119 @@
+# Guide to Fix Test Suite Issues
+
+The test suite is encountering an issue with MongoDB Memory Server initialization. Follow these steps to diagnose and fix the problems:
+
+## 1. Install Required Dependencies
+
+First, make sure all required dependencies are installed:
+
+```bash
+npm install mongodb-memory-server@latest --save-dev
+```
+
+## 2. Create Test Environment File
+
+Create a `.env.test` file in the project root:
+
+```bash
+cp .env.example .env.test
+```
+
+Then edit `.env.test` to use the values provided in the test-env file.
+
+## 3. Verify Test Environment Setup
+
+Run the setup verification script:
+
+```bash
+npm run test:setup
+```
+
+This will verify that MongoDB Memory Server is working correctly and all dependencies are installed.
+
+## 4. Run the Basic Test
+
+Run a simple test to verify Jest is working:
+
+```bash
+npm run test:basic
+```
+
+This basic test doesn't rely on MongoDB or other external services and should pass.
+
+## 5. Fix MongoDB Memory Server Initialization
+
+If the above steps don't resolve the issue, these are common problems and solutions:
+
+### Issue: MongoDB Memory Server fails to initialize
+
+- Check MongoDB Memory Server version compatibility with your Node.js version
+- Verify you have enough system memory
+- Check if MongoDB binaries can be downloaded (internet connection/firewall)
+
+Solution:
+```bash
+# Try with a specific version
+npm uninstall mongodb-memory-server
+npm install mongodb-memory-server@7.3.0 --save-dev
+```
+
+### Issue: Jest cannot find MongoDB Memory Server
+
+This usually happens when the test environment is not properly set up.
+
+Solution:
+```bash
+# Enable debugging for Jest
+NODE_DEBUG=jest npm test
+
+# Or try running Jest with Node options
+NODE_OPTIONS=--trace-warnings npm test
+```
+
+## 6. Adjust Test Timeout
+
+If the tests are failing due to timeouts, modify the `jest.config.js` to increase the timeout:
+
+```javascript
+testTimeout: 60000, // Increase to 60 seconds
+```
+
+## 7. Run Individual Test Files
+
+Instead of running all tests at once, run them individually to identify problematic files:
+
+```bash
+npx jest tests/basic.test.js
+npx jest tests/services/authService.test.js
+# etc.
+```
+
+## 8. Debugging Strategy
+
+1. Disable the MongoDB setup temporarily
+2. Get simple tests passing
+3. Re-enable MongoDB with more debugging
+4. Fix each test file one by one
+
+## 9. Alternative In-Memory MongoDB Approach
+
+If MongoDB Memory Server continues to cause issues, consider using a mock approach instead:
+
+```javascript
+// In setup.js
+jest.mock('../../config/db', () => {
+  // Mock implementation of database functions
+  return {
+    getCollection: jest.fn(() => {
+      return {
+        findOne: jest.fn(),
+        insertOne: jest.fn(),
+        // etc.
+      };
+    }),
+    // etc.
+  };
+});
+```
+
+Remember to run the tests in sequence rather than parallel if you're having issues with the MongoDB Memory Server.

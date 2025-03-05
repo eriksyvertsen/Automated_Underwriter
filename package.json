@@ -6,7 +6,17 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "jest"
+    "test": "jest",
+    "test:basic": "jest tests/basic.test.js",
+    "test:setup": "node tests/verify-setup.js",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:services": "jest tests/services",
+    "test:controllers": "jest tests/controllers",
+    "test:middleware": "jest tests/middleware",
+    "test:utils": "jest tests/utils"
   },
   "dependencies": {
     "@replit/database": "^2.0.5",
@@ -21,7 +31,9 @@
   },
   "devDependencies": {
     "jest": "^29.7.0",
-    "nodemon": "^3.0.1"
+    "mongodb-memory-server": "^10.1.4",
+    "nodemon": "^3.0.1",
+    "supertest": "^6.3.3"
   },
   "engines": {
     "node": ">=18.0.0"

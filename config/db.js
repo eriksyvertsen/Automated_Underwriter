@@ -11,7 +11,10 @@ const replitDb = new Client();
 // Connect to MongoDB Atlas
 const connectMongoDB = async () => {
   try {
-    if (mongoClient) return db;
+    if (mongoClient) {
+      console.log('Reusing existing MongoDB connection');
+      return db;
+    }
 
     const uri = process.env.MONGODB_URI;
     if (!uri) {
@@ -19,7 +22,12 @@ const connectMongoDB = async () => {
       return null;
     }
 
-    mongoClient = new MongoClient(uri);
+    console.log('Attempting to connect to MongoDB Atlas...');
+    mongoClient = new MongoClient(uri, {
+      connectTimeoutMS: 10000,  // Increase timeout
+      socketTimeoutMS: 45000,   // Increase socket timeout
+    });
+
     await mongoClient.connect();
     db = mongoClient.db();
 
@@ -27,17 +35,36 @@ const connectMongoDB = async () => {
     return db;
   } catch (error) {
     console.error('MongoDB connection error:', error);
+    // Cleanup if there was an error during connection
+    if (mongoClient) {
+      await mongoClient.close().catch(e => console.error('Error closing MongoDB client:', e));
+      mongoClient = null;
+      db = null;
+    }
     return null;
   }
 };
-
 // Get MongoDB collection
+// Example fix for config/db.js
 const getCollection = async (collectionName) => {
-  if (!db) {
-    db = await connectMongoDB();
-    if (!db) throw new Error('Failed to connect to MongoDB');
+  try {
+    if (!db) {
+      db = await connectMongoDB();
+      if (!db) {
+        // Add more robust error message
+        console.error('MongoDB connection not available, retrying...');
+        // Add a retry attempt
+        db = await connectMongoDB();
+        if (!db) {
+          throw new Error('Failed to connect to MongoDB after retry');
+        }
+      }
+    }
+    return db.collection(collectionName);
+  } catch (error) {
+    console.error('Error getting collection:', error);
+    throw new Error('Failed to connect to MongoDB');
   }
-  return db.collection(collectionName);
 };
 
 // Replit DB wrapper for session storage
