@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - AI Underwriting Reports</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .dashboard-container {
+      padding: 2rem 0;
+    }
+    .report-card {
+      height: 100%;
+      transition: transform 0.2s;
+    }
+    .report-card:hover {
+      transform: translateY(-5px);
+    }
+    .status-badge {
+      font-size: 0.8rem;
+    }
+    .sidebar {
+      position: sticky;
+      top: 2rem;
+    }
+    .welcome-section {
+      background-color: #fff;
+      border-radius: 0.5rem;
+      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+    .section-heading {
+      margin-bottom: 1.5rem;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      background-color: #fff;
+      border-radius: 0.5rem;
+      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+    }
+    .empty-state-icon {
+      font-size: 4rem;
+      color: #6c757d;
+      margin-bottom: 1.5rem;
+    }
+    #create-report-modal .form-group {
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/dashboard.html">AI Underwriting Reports</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="/dashboard.html">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#create-report-modal">New Report</a>
+          </li>
+        </ul>
+        <ul class="navbar-nav">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <span id="user-name">User</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item" href="#" id="logout-btn">Logout</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Dashboard Content -->
+  <div class="container dashboard-container">
+    <div class="row">
+      <!-- Main Content -->
+      <div class="col-lg-9 order-lg-2">
+        <!-- Welcome Section -->
+        <div class="welcome-section">
+          <h1>Welcome, <span id="welcome-user-name">User</span>!</h1>
+          <p class="lead">Create, manage, and export your AI-generated underwriting reports.</p>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#create-report-modal">
+            Create New Report
+          </button>
+        </div>
+
+        <!-- Reports Section -->
+        <div class="section-heading d-flex justify-content-between align-items-center">
+          <h2>Your Reports</h2>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+              Sort by: Newest
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="sortDropdown">
+              <li><a class="dropdown-item active" href="#" data-sort="newest">Newest</a></li>
+              <li><a class="dropdown-item" href="#" data-sort="oldest">Oldest</a></li>
+              <li><a class="dropdown-item" href="#" data-sort="name">Name (A-Z)</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="reports-container">
+          <!-- Loading indicator -->
+          <div id="loading-indicator" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading your reports...</p>
+          </div>
+
+          <!-- Empty state when no reports -->
+          <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">📊</div>
+            <h3>No Reports Yet</h3>
+            <p class="text-muted">Create your first underwriting report to get started.</p>
+            <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#create-report-modal">
+              Create New Report
+            </button>
+          </div>
+
+          <!-- Reports grid -->
+          <div id="reports-grid" class="row g-4" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="col-lg-3 order-lg-1">
+        <div class="sidebar">
+          <div class="card mb-4">
+            <div class="card-header">
+              Quick Actions
+            </div>
+            <div class="list-group list-group-flush">
+              <a href="#" class="list-group-item list-group-item-action" data-bs-toggle="modal" data-bs-target="#create-report-modal">
+                <i class="bi bi-plus-circle"></i> New Report
+              </a>
+              <a href="#" class="list-group-item list-group-item-action" id="refresh-reports-btn">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Reports
+              </a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              Report Templates
+            </div>
+            <div class="list-group list-group-flush">
+              <a href="#" class="list-group-item list-group-item-action" data-template="standard">
+                Standard Report
+              </a>
+              <a href="#" class="list-group-item list-group-item-action" data-template="basic">
+                Basic Report
+              </a>
+              <a href="#" class="list-group-item list-group-item-action" data-template="financial">
+                Financial Report
+              </a>
+              <a href="#" class="list-group-item list-group-item-action" data-template="mvp">
+                MVP Report (Test)
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Report Modal -->
+  <div class="modal fade" id="create-report-modal" tabindex="-1" aria-labelledby="createReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="createReportModalLabel">Create New Report</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="create-report-form">
+            <!-- Error alert -->
+            <div class="alert alert-danger" id="create-report-error" style="display: none;"></div>
+
+            <div class="form-group">
+              <label for="company-name" class="form-label">Company Name</label>
+              <input type="text" class="form-control" id="company-name" required>
+            </div>
+
+            <div class="form-group">
+              <label for="company-description" class="form-label">Company Description</label>
+              <textarea class="form-control" id="company-description" rows="3" placeholder="Brief description of the company and its business"></textarea>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="company-industry" class="form-label">Industry</label>
+                  <input type="text" class="form-control" id="company-industry" placeholder="e.g. Technology, Healthcare, Finance">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="company-founding-year" class="form-label">Founding Year</label>
+                  <input type="number" class="form-control" id="company-founding-year" placeholder="e.g. 2010">
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="company-headquarters" class="form-label">Headquarters</label>
+                  <input type="text" class="form-control" id="company-headquarters" placeholder="e.g. San Francisco, CA">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="company-employees" class="form-label">Number of Employees</label>
+                  <input type="number" class="form-control" id="company-employees" placeholder="e.g. 250">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="report-template" class="form-label">Report Template</label>
+              <select class="form-select" id="report-template">
+                <option value="mvp" selected>MVP Report (Test)</option>
+                <option value="standard">Standard Report</option>
+                <option value="basic">Basic Report</option>
+                <option value="financial">Financial Report</option>
+              </select>
+              <div class="form-text">For the MVP phase, we recommend the MVP Report template.</div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="create-report-submit">
+            <span id="create-report-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            Create Report
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Card Template (Hidden) -->
+  <template id="report-card-template">
+    <div class="col-md-6 col-xl-4 report-card-container">
+      <div class="card report-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="report-status"></span>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-three-dots-vertical" viewBox="0 0 16 16">
+                <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+              </svg>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item view-report" href="#">View Report</a></li>
+              <li><a class="dropdown-item edit-report" href="#">Edit Report</a></li>
+              <li><a class="dropdown-item generate-report" href="#">Generate Sections</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger delete-report" href="#">Delete Report</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="card-body">
+          <h5 class="card-title report-name"></h5>
+          <p class="card-text report-sections"></p>
+        </div>
+        <div class="card-footer text-muted d-flex justify-content-between">
+          <small class="report-date"></small>
+          <small class="report-template"></small>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Auth check
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+      if (!token) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      // Set user name
+      const userNameElements = document.querySelectorAll('#user-name, #welcome-user-name');
+      userNameElements.forEach(el => {
+        el.textContent = user.name || 'User';
+      });
+
+      // Logout functionality
+      document.getElementById('logout-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login.html';
+      });
+
+      // Refresh reports
+      const refreshReports = async () => {
+        const reportsContainer = document.getElementById('reports-container');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const emptyState = document.getElementById('empty-state');
+        const reportsGrid = document.getElementById('reports-grid');
+
+        // Show loading
+        loadingIndicator.style.display = 'block';
+        emptyState.style.display = 'none';
+        reportsGrid.style.display = 'none';
+        reportsGrid.innerHTML = '';
+
+        try {
+          // Fetch reports from API
+          const response = await fetch('/api/reports', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch reports');
+          }
+
+          const data = await response.json();
+          const reports = data.reports || [];
+
+          // Hide loading
+          loadingIndicator.style.display = 'none';
+
+          if (reports.length === 0) {
+            // Show empty state
+            emptyState.style.display = 'block';
+          } else {
+            // Show reports
+            reportsGrid.style.display = 'block';
+
+            // Create report cards
+            const template = document.getElementById('report-card-template');
+
+            reports.forEach(report => {
+              const card = template.content.cloneNode(true);
+
+              // Set report data
+              card.querySelector('.report-name').textContent = report.companyName;
+
+              // Set status badge
+              const statusBadge = card.querySelector('.report-status');
+              let badgeClass = 'bg-secondary';
+              let statusText = 'Draft';
+
+              if (report.status === 'generating') {
+                badgeClass = 'bg-warning text-dark';
+                statusText = 'Generating';
+              } else if (report.status === 'completed') {
+                badgeClass = 'bg-success';
+                statusText = 'Completed';
+              } else if (report.status === 'in_progress') {
+                badgeClass = 'bg-info text-dark';
+                statusText = 'In Progress';
+              } else if (report.status === 'failed') {
+                badgeClass = 'bg-danger';
+                statusText = 'Failed';
+              }
+
+              statusBadge.className = `badge ${badgeClass} status-badge`;
+              statusBadge.textContent = statusText;
+
+              // Set sections info
+              const sectionsCount = report.sections ? report.sections.length : 0;
+              card.querySelector('.report-sections').textContent = 
+                sectionsCount > 0 
+                  ? `${sectionsCount} section${sectionsCount !== 1 ? 's' : ''} generated` 
+                  : 'No sections generated yet';
+
+              // Set date
+              const date = new Date(report.updatedAt);
+              card.querySelector('.report-date').textContent = date.toLocaleDateString();
+
+              // Set template
+              card.querySelector('.report-template').textContent = 
+                report.templateType ? report.templateType.charAt(0).toUpperCase() + report.templateType.slice(1) : 'Standard';
+
+              // Add report ID as data attribute
+              const cardContainer = card.querySelector('.report-card-container');
+              cardContainer.dataset.reportId = report._id;
+
+              // Add event listeners for actions
+              card.querySelector('.view-report').addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = `/reports/${report._id}`;
+              });
+
+              card.querySelector('.edit-report').addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = `/reports/${report._id}/edit`;
+              });
+
+              card.querySelector('.generate-report').addEventListener('click', function(e) {
+                e.preventDefault();
+                generateReportSections(report._id);
+              });
+
+              card.querySelector('.delete-report').addEventListener('click', function(e) {
+                e.preventDefault();
+                deleteReport(report._id);
+              });
+
+              // Add card to grid
+              reportsGrid.appendChild(card);
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching reports:', error);
+          loadingIndicator.style.display = 'none';
+          emptyState.style.display = 'block';
+          emptyState.querySelector('h3').textContent = 'Error Loading Reports';
+          emptyState.querySelector('p').textContent = 'There was an error loading your reports. Please try again.';
+        }
+      };
+
+      // Initial load of reports
+      refreshReports();
+
+      // Refresh reports button
+      document.getElementById('refresh-reports-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        refreshReports();
+      });
+
+      // Create report form submission
+      document.getElementById('create-report-submit').addEventListener('click', async function() {
+        const form = document.getElementById('create-report-form');
+        const errorAlert = document.getElementById('create-report-error');
+        const submitButton = this;
+        const spinner = document.getElementById('create-report-spinner');
+
+        // Basic validation
+        const companyNameInput = document.getElementById('company-name');
+        if (!companyNameInput.value.trim()) {
+          errorAlert.textContent = 'Company name is required';
+          errorAlert.style.display = 'block';
+          companyNameInput.focus();
+          return;
+        }
+
+        // Show loading state
+        submitButton.disabled = true;
+        spinner.classList.remove('d-none');
+        errorAlert.style.display = 'none';
+
+        try {
+          // Prepare company data
+          const companyData = {
+            name: document.getElementById('company-name').value,
+            description: document.getElementById('company-description').value,
+            industry: document.getElementById('company-industry').value,
+            foundingYear: document.getElementById('company-founding-year').value 
+              ? parseInt(document.getElementById('company-founding-year').value) 
+              : null,
+            headquarters: document.getElementById('company-headquarters').value,
+            employeeCount: document.getElementById('company-employees').value 
+              ? parseInt(document.getElementById('company-employees').value) 
+              : null,
+            templateType: document.getElementById('report-template').value
+          };
+
+          // Create report
+          const createResponse = await fetch('/api/reports', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(companyData)
+          });
+
+          if (!createResponse.ok) {
+            throw new Error('Failed to create report');
+          }
+
+          const createData = await createResponse.json();
+          const reportId = createData.reportId;
+
+          // Start generation if template is selected
+          const templateType = document.getElementById('report-template').value;
+
+          if (templateType) {
+            const generateResponse = await fetch(`/api/reports/${reportId}/generate`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                companyData,
+                templateType
+              })
+            });
+
+            if (!generateResponse.ok) {
+              console.warn('Report created but generation failed to start');
+            }
+          }
+
+          // Close modal and refresh reports
+          const modal = bootstrap.Modal.getInstance(document.getElementById('create-report-modal'));
+          modal.hide();
+
+          // Clear form
+          form.reset();
+
+          // Refresh reports
+          refreshReports();
+
+        } catch (error) {
+          console.error('Error creating report:', error);
+          errorAlert.textContent = 'Failed to create report. Please try again.';
+          errorAlert.style.display = 'block';
+        } finally {
+          // Reset loading state
+          submitButton.disabled = false;
+          spinner.classList.add('d-none');
+        }
+      });
+
+      // Generate report sections
+      async function generateReportSections(reportId) {
+        try {
+          // Find report card and update status
+          const reportCard = document.querySelector(`.report-card-container[data-report-id="${reportId}"]`);
+          if (reportCard) {
+            const statusBadge = reportCard.querySelector('.report-status');
+            statusBadge.className = 'badge bg-warning text-dark status-badge';
+            statusBadge.textContent = 'Generating';
+          }
+
+          // Start generation
+          const response = await fetch(`/api/reports/${reportId}/generate`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              templateType: 'mvp' // Use MVP template for testing
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to start report generation');
+          }
+
+          // No need to wait for completion, will refresh via polling
+          setTimeout(refreshReports, 5000); // Refresh after 5 seconds
+
+        } catch (error) {
+          console.error('Error generating report sections:', error);
+          alert('Failed to generate report sections. Please try again.');
+          refreshReports();
+        }
+      }
+
+      // Delete report
+      async function deleteReport(reportId) {
+        if (!confirm('Are you sure you want to delete this report?')) {
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/reports/${reportId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to delete report');
+          }
+
+          // Refresh reports
+          refreshReports();
+
+        } catch (error) {
+          console.error('Error deleting report:', error);
+          alert('Failed to delete report. Please try again.');
+        }
+      }
+    });
+  </script>
+</body>
+</html>
