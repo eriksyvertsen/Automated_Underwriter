@@ -38,11 +38,8 @@ app.use(errorHandler);
 // Database connection and server start
 async function startServer() {
   try {
-    // Connect to MongoDB first
-    const db = await connectMongoDB();
-
-    // Start the server regardless of DB connection status
-    // This allows the app to function with Replit Database as fallback
+    // Start the server before trying to connect to MongoDB
+    // This ensures the server is responsive even during DB connection issues
     const PORT = process.env.PORT || 3000;
     const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
@@ -63,6 +60,19 @@ async function startServer() {
         });
       });
     };
+
+    // Try to connect to MongoDB in the background
+    // This will initialize the connection for later use
+    connectMongoDB().then(dbInstance => {
+      if (dbInstance) {
+        console.log('MongoDB connection established successfully');
+      } else {
+        console.warn('MongoDB connection failed, using Replit Database as fallback');
+      }
+    }).catch(err => {
+      console.error('Error initializing MongoDB connection:', err);
+      console.log('Server will continue running with limited functionality');
+    });
 
     // Return the server instance for testing
     return server;

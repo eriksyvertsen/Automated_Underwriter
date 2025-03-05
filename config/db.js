@@ -11,7 +11,7 @@ const replitDb = new Client();
 // Connect to MongoDB Atlas
 const connectMongoDB = async () => {
   try {
-    if (mongoClient) {
+    if (mongoClient && db) {
       console.log('Reusing existing MongoDB connection');
       return db;
     }
@@ -23,9 +23,20 @@ const connectMongoDB = async () => {
     }
 
     console.log('Attempting to connect to MongoDB Atlas...');
+    // Close any existing connection before creating a new one
+    if (mongoClient) {
+      try {
+        await mongoClient.close();
+      } catch (e) {
+        console.error('Error closing existing MongoDB client:', e);
+      }
+      mongoClient = null;
+      db = null;
+    }
+
     mongoClient = new MongoClient(uri, {
-      connectTimeoutMS: 10000,  // Increase timeout
-      socketTimeoutMS: 45000,   // Increase socket timeout
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 60000,
     });
 
     await mongoClient.connect();
@@ -37,34 +48,71 @@ const connectMongoDB = async () => {
     console.error('MongoDB connection error:', error);
     // Cleanup if there was an error during connection
     if (mongoClient) {
-      await mongoClient.close().catch(e => console.error('Error closing MongoDB client:', e));
+      try {
+        await mongoClient.close();
+      } catch (e) {
+        console.error('Error closing MongoDB client:', e);
+      }
       mongoClient = null;
       db = null;
     }
     return null;
   }
 };
-// Get MongoDB collection
-// Example fix for config/db.js
+
+// Get MongoDB collection with improved retry logic
 const getCollection = async (collectionName) => {
-  try {
-    if (!db) {
-      db = await connectMongoDB();
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 second
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  let retries = 0;
+  let lastError = null;
+
+  while (retries < MAX_RETRIES) {
+    try {
       if (!db) {
-        // Add more robust error message
-        console.error('MongoDB connection not available, retrying...');
-        // Add a retry attempt
+        console.log(`Connecting to MongoDB (attempt ${retries + 1}/${MAX_RETRIES})...`);
         db = await connectMongoDB();
         if (!db) {
-          throw new Error('Failed to connect to MongoDB after retry');
+          throw new Error('Connection returned null');
         }
       }
+
+      // Get the collection
+      const collection = db.collection(collectionName);
+
+      // Don't use stats() - it's not reliable. Instead, do a simple read operation
+      // that doesn't require any actual data
+      await collection.findOne({ _id: 'test-connection' }, { projection: { _id: 1 } });
+
+      return collection;
+    } catch (error) {
+      lastError = error;
+      console.error(`MongoDB connection attempt ${retries + 1}/${MAX_RETRIES} failed:`, error.message);
+
+      // Reset connection for retry
+      if (mongoClient) {
+        try {
+          await mongoClient.close();
+        } catch (e) {
+          console.error('Error closing MongoDB client:', e);
+        }
+        mongoClient = null;
+        db = null;
+      }
+
+      retries++;
+      if (retries < MAX_RETRIES) {
+        console.log(`Retrying in ${RETRY_DELAY * retries}ms...`);
+        await sleep(RETRY_DELAY * retries); // Exponential backoff
+      }
     }
-    return db.collection(collectionName);
-  } catch (error) {
-    console.error('Error getting collection:', error);
-    throw new Error('Failed to connect to MongoDB');
   }
+
+  console.error(`Failed to connect to MongoDB after ${MAX_RETRIES} attempts`);
+  throw new Error(`Failed to connect to MongoDB: ${lastError ? lastError.message : 'Unknown error'}`);
 };
 
 // Replit DB wrapper for session storage

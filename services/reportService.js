@@ -5,23 +5,48 @@ const { ObjectId } = require('mongodb');
 class ReportService {
   constructor() {
     this.reportsCollection = null;
-    this.init();
+    this.initialized = false;
+    this.initPromise = this.init();
   }
 
   async init() {
     try {
+      // Try to get the collection
       this.reportsCollection = await getCollection('reports');
+      this.initialized = true;
+      console.log('ReportService initialized successfully');
+      return true;
     } catch (error) {
       console.error('Error initializing ReportService:', error);
+      return false;
     }
+  }
+
+  // Helper method to ensure the service is initialized before operations
+  async ensureInitialized() {
+    if (!this.initialized) {
+      // Wait for the initial initialization to complete
+      await this.initPromise;
+
+      // If still not initialized, try again
+      if (!this.initialized) {
+        console.log('Attempting to re-initialize ReportService...');
+        await this.init();
+      }
+
+      if (!this.initialized) {
+        throw new Error('ReportService could not be initialized');
+      }
+    }
+
+    return this.reportsCollection;
   }
 
   // Create a new report based on company details
   async createReport(userId, companyDetails) {
     try {
-      if (!this.reportsCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
       // Create basic report structure
       const newReport = {
@@ -36,7 +61,7 @@ class ReportService {
       };
 
       // Insert the report into the database
-      const result = await this.reportsCollection.insertOne(newReport);
+      const result = await collection.insertOne(newReport);
       newReport._id = result.insertedId;
 
       return newReport;
@@ -49,15 +74,14 @@ class ReportService {
   // Get a report by ID
   async getReportById(reportId, userId) {
     try {
-      if (!this.reportsCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
       // Convert string ID to ObjectId if needed
       const objectId = typeof reportId === 'string' ? new ObjectId(reportId) : reportId;
 
       // Find the report by ID and user ID for security
-      const report = await this.reportsCollection.findOne({ 
+      const report = await collection.findOne({ 
         _id: objectId,
         userId: userId
       });
@@ -76,12 +100,11 @@ class ReportService {
   // Get all reports for a user
   async getReportsByUser(userId) {
     try {
-      if (!this.reportsCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
       // Find all reports for the user
-      const reports = await this.reportsCollection.find({ userId: userId })
+      const reports = await collection.find({ userId: userId })
         .sort({ updatedAt: -1 })
         .toArray();
 
@@ -95,9 +118,8 @@ class ReportService {
   // Update an existing report
   async updateReport(reportId, userId, updates) {
     try {
-      if (!this.reportsCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
       // Convert string ID to ObjectId if needed
       const objectId = typeof reportId === 'string' ? new ObjectId(reportId) : reportId;
@@ -109,7 +131,7 @@ class ReportService {
       };
 
       // Update the report
-      const result = await this.reportsCollection.updateOne(
+      const result = await collection.updateOne(
         { _id: objectId, userId: userId },
         { $set: updateData }
       );
@@ -129,15 +151,14 @@ class ReportService {
   // Delete a report
   async deleteReport(reportId, userId) {
     try {
-      if (!this.reportsCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
       // Convert string ID to ObjectId if needed
       const objectId = typeof reportId === 'string' ? new ObjectId(reportId) : reportId;
 
       // Delete the report
-      const result = await this.reportsCollection.deleteOne({ 
+      const result = await collection.deleteOne({ 
         _id: objectId,
         userId: userId
       });
@@ -156,6 +177,8 @@ class ReportService {
   // Generate a section for a report
   async generateReportSection(reportId, userId, sectionType, companyData) {
     try {
+      // Ensure the service is initialized (through getReportById)
+
       // Get the report to ensure it exists and user has access
       const report = await this.getReportById(reportId, userId);
 

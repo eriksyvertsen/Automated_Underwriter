@@ -5,25 +5,49 @@ const { getCollection } = require('../config/db');
 class AuthService {
   constructor() {
     this.usersCollection = null;
-    this.init();
+    this.initialized = false;
+    this.initPromise = this.init();
   }
 
   async init() {
     try {
       this.usersCollection = await getCollection('users');
+      this.initialized = true;
+      console.log('AuthService initialized successfully');
+      return true;
     } catch (error) {
       console.error('Error initializing AuthService:', error);
+      return false;
     }
+  }
+
+  // Helper method to ensure the service is initialized before operations
+  async ensureInitialized() {
+    if (!this.initialized) {
+      // Wait for the initial initialization to complete
+      await this.initPromise;
+
+      // If still not initialized, try again
+      if (!this.initialized) {
+        console.log('Attempting to re-initialize AuthService...');
+        await this.init();
+      }
+
+      if (!this.initialized) {
+        throw new Error('AuthService could not be initialized');
+      }
+    }
+
+    return this.usersCollection;
   }
 
   async registerUser(userData) {
     try {
-      if (!this.usersCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
       // Check if the user already exists
-      const existingUser = await this.usersCollection.findOne({ email: userData.email });
+      const existingUser = await collection.findOne({ email: userData.email });
       if (existingUser) {
         throw new Error('User with this email already exists');
       }
@@ -47,7 +71,7 @@ class AuthService {
       };
 
       // Insert the user into the database
-      await this.usersCollection.insertOne(newUser);
+      await collection.insertOne(newUser);
 
       // Return the user without the password
       const { passwordHash, ...userWithoutPassword } = newUser;
@@ -60,12 +84,11 @@ class AuthService {
 
   async loginUser(email, password) {
     try {
-      if (!this.usersCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
       // Find the user
-      const user = await this.usersCollection.findOne({ email });
+      const user = await collection.findOne({ email });
       if (!user) {
         throw new Error('Invalid credentials');
       }
@@ -77,7 +100,7 @@ class AuthService {
       }
 
       // Update last login and usage count
-      await this.usersCollection.updateOne(
+      await collection.updateOne(
         { _id: user._id },
         { 
           $set: { lastLogin: new Date() },
@@ -125,11 +148,10 @@ class AuthService {
 
   async getUserById(userId) {
     try {
-      if (!this.usersCollection) {
-        await this.init();
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
-      const user = await this.usersCollection.findOne({ _id: userId });
+      const user = await collection.findOne({ _id: userId });
       if (!user) {
         throw new Error('User not found');
       }
