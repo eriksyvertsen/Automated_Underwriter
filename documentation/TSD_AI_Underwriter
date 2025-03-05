@@ -1,0 +1,1016 @@
+# Technical Specification Document: AI-Powered Underwriting Report Generator
+
+## 1. Introduction
+
+### 1.1 Purpose
+
+This Technical Specification Document (TSD) provides detailed implementation guidance for developing the AI-Powered Underwriting Report Generator web application. The system will leverage OpenAI's advanced models to generate comprehensive, professional-grade underwriting reports for private companies based on the requirements outlined in the research prompt.
+
+### 1.2 Scope
+
+This document covers the technical implementation details for the entire web application, including frontend interfaces, backend services, database design, API integrations, and testing procedures. It is intended to serve as the definitive reference for the development team.
+
+### 1.3 Intended Audience
+
+- Development team (frontend and backend developers)
+- QA engineers
+- Project managers
+- DevOps engineers
+- System architects
+
+### 1.4 System Overview
+
+The AI-Powered Underwriting Report Generator is a web-based platform that allows financial analysts and institutional investors to generate detailed underwriting reports for private companies. The system will:
+
+1. Collect company information and available financial data
+2. Retrieve additional data from verified third-party sources
+3. Process this information using OpenAI's advanced models
+4. Generate structured, comprehensive reports following the specified format
+5. Allow users to review, edit, and export the final reports
+
+## 2. System Architecture
+
+### 2.1 Architecture Diagram
+
+```
+┌───────────────────┐     ┌───────────────────┐     ┌───────────────────┐
+│                   │     │                   │     │                   │
+│  Client Layer     │     │  Application      │     │  External         │
+│  (Web Frontend)   │────►│  Layer            │────►│  Services         │
+│                   │     │                   │     │                   │
+└───────────────────┘     └─────────┬─────────┘     └───────────────────┘
+                                    │
+                                    ▼
+                          ┌───────────────────┐
+                          │                   │
+                          │  Data Layer       │
+                          │                   │
+                          └───────────────────┘
+
+```
+
+### 2.2 Component Breakdown
+
+### 2.2.1 Client Layer
+
+- Single-page application built with React
+- State management with Context API (lighter than Redux)
+- UI component library: Chakra UI (more lightweight than Material-UI)
+- Data visualization with Chart.js (simpler than D3.js)
+- PDF generation using jsPDF
+
+### 2.2.2 Application Layer
+
+- Node.js with Express framework
+- Combined authentication and user management service
+- Report generation service
+- Simplified data aggregation service
+- OpenAI integration service
+- In-memory caching with Node.js
+
+### 2.2.3 Data Layer
+
+- MongoDB Atlas (free tier) for primary database
+- Replit Database for sessions and lightweight data
+- File system storage for temporary files
+- Firebase Storage (free tier) for persistent report storage
+
+### 2.2.4 External Services
+
+- OpenAI API
+- Free alternative financial data APIs (Yahoo Finance, Alpha Vantage)
+- Public company information APIs
+- Open data sources for market research
+
+### 2.3 System Interactions
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Auth Service
+    participant Report Service
+    participant Data Service
+    participant OpenAI Service
+    participant External APIs
+
+    User->>Frontend: Initiates report generation
+    Frontend->>API Gateway: Request with company details
+    API Gateway->>Auth Service: Validate request
+    Auth Service-->>API Gateway: Validated
+    API Gateway->>Data Service: Request company data
+    Data Service->>External APIs: Fetch available data
+    External APIs-->>Data Service: Return company data
+    Data Service-->>Report Service: Processed data
+    Report Service->>OpenAI Service: Generate report sections
+    OpenAI Service-->>Report Service: Generated content
+    Report Service-->>Frontend: Complete report
+    Frontend->>User: Display report for review
+
+```
+
+## 3. Detailed Component Specifications
+
+### 3.1 Frontend Components
+
+### 3.1.1 User Interface Modules
+
+| Module | Description | Technologies | Key Features |
+| --- | --- | --- | --- |
+| Authentication | User login/registration | React, Redux, JWT | Multi-factor auth, session management |
+| Company Input | Form for entering company details | React, Formik, Yup | Validation, auto-completion, progress tracking |
+| Report Builder | Interface for customizing report | React, DnD libraries | Section reordering, content editing |
+| Report Preview | WYSIWYG preview of final report | React, CSS | Print styling, responsive layout |
+| Data Visualization Editor | Tools for customizing charts | D3.js, Chart.js | Chart type selection, data mapping, styling options |
+| Export Module | Export to various formats | React-PDF, html2canvas | PDF, DOCX, HTML formats with styling |
+
+### 3.1.2 State Management
+
+The application will use Redux for state management with the following main slices:
+
+```jsx
+const store = {
+  auth: {
+    user: Object,
+    isAuthenticated: Boolean,
+    loading: Boolean,
+    error: String
+  },
+  company: {
+    details: Object,
+    loading: Boolean,
+    error: String,
+    dataCompleteness: Number
+  },
+  report: {
+    sections: Array,
+    currentSection: String,
+    generatingStatus: Object,
+    lastUpdated: Date,
+    savedVersions: Array
+  },
+  ui: {
+    sidebarOpen: Boolean,
+    currentView: String,
+    notifications: Array
+  }
+};
+
+```
+
+### 3.1.3 Frontend Routes
+
+| Route | Description | Access Control |
+| --- | --- | --- |
+| / | Landing page | Public |
+| /login | Authentication | Public |
+| /dashboard | User dashboard | Authenticated |
+| /reports | Report listing | Authenticated |
+| /reports/new | Create new report | Authenticated |
+| /reports/:id | View/edit report | Authenticated |
+| /settings | User settings | Authenticated |
+| /admin/* | Admin functions | Admin only |
+
+### 3.2 Backend Services (Replit-Optimized)
+
+### 3.2.1 Simplified API Endpoints
+
+**Authentication Service**
+
+| Endpoint | Method | Description | Request Body | Response |
+| --- | --- | --- | --- | --- |
+| /api/auth/register | POST | Create account | {email, password, name} | {token, user} |
+| /api/auth/login | POST | User login | {email, password} | {token, user} |
+| /api/auth/verify | GET | Verify token | - | {user} |
+
+**Report Service**
+
+| Endpoint | Method | Description | Request Body | Response |
+| --- | --- | --- | --- | --- |
+| /api/reports | GET | List reports | - | {reports[]} |
+| /api/reports | POST | Create report | {companyDetails} | {reportId, status} |
+| /api/reports/:id | GET | Get report | - | {report} |
+| /api/reports/:id | PUT | Update report | {updates} | {report} |
+| /api/reports/:id | DELETE | Delete report | - | {success} |
+| /api/reports/:id/generate | POST | Queue report generation | {templateType} | {jobId, status} |
+| /api/reports/:id/status | GET | Check generation status | - | {status, progress} |
+| /api/reports/:id/export | GET | Get export link | - | {downloadUrl} |
+
+**Data Service (Simplified)**
+
+| Endpoint | Method | Description | Request Body | Response |
+| --- | --- | --- | --- | --- |
+| /api/companies/lookup | GET | Find company by name | {name} | {companyData} |
+| /api/market/basics | GET | Get basic market data | {industry} | {marketData} |
+
+### 3.2.2 OpenAI Integration Service
+
+The OpenAI Integration Service will handle all interactions with the OpenAI API. It will implement:
+
+- Token usage optimization
+- Error handling and retry logic
+- Prompt template management
+- Content filtering and validation
+- Response parsing and structuring
+
+**Core Functions:**
+
+```jsx
+// Pseudocode for key service functions
+async function generateReportSection(sectionType, companyData, additionalContext) {
+  // 1. Select appropriate prompt template
+  const promptTemplate = getPromptTemplateForSection(sectionType);
+
+  // 2. Fill template with company data
+  const prompt = fillPromptTemplate(promptTemplate, companyData, additionalContext);
+
+  // 3. Calculate token usage and optimize if needed
+  const optimizedPrompt = optimizeTokenUsage(prompt);
+
+  // 4. Call OpenAI API with appropriate parameters
+  const response = await callOpenAIAPI({
+    model: "gpt-4-turbo", // or latest available model
+    prompt: optimizedPrompt,
+    temperature: getSectionTemperature(sectionType),
+    max_tokens: getMaxTokensForSection(sectionType),
+    // Additional parameters
+  });
+
+  // 5. Validate and process response
+  const processedContent = processOpenAIResponse(response, sectionType);
+
+  // 6. Return structured content
+  return {
+    content: processedContent,
+    metadata: {
+      tokensUsed: response.usage.total_tokens,
+      generatedAt: new Date(),
+      model: response.model,
+      promptVersionId: promptTemplate.versionId
+    }
+  };
+}
+
+```
+
+**Prompt Templates System:**
+
+The service will maintain a library of prompt templates for each report section, with versioning to allow for improvements over time:
+
+```jsx
+const promptTemplates = {
+  executiveSummary: {
+    version: "1.0.3",
+    template: `Generate a professional executive summary for an underwriting report on {companyName}, a {companyDescription}. Include:
+1. Company snapshot: founded {foundingYear}, headquartered in {headquarters}, approximately {employeeCount} employees, {fundingStatus}.
+2. Investment thesis in 2-3 concise paragraphs that focus on {investmentHighlights}.
+3. Summary financial metrics with 12-month outlook including {financialMetrics}.
+4. Risk-adjusted investment recommendation.
+
+Use a formal, analytical tone suitable for institutional investors. Make all estimates based on the following data points:
+{companyData}`,
+    parameters: {
+      temperature: 0.4,
+      maxTokens: 1000,
+      requiresFinancialData: true,
+      requiresMarketData: true
+    }
+  },
+  // Additional templates for each section
+};
+
+```
+
+### 3.2.3 Data Aggregation Service
+
+This service will combine data from multiple sources to create a comprehensive dataset for AI processing:
+
+**Data Sources:**
+
+- User-provided information
+- Third-party APIs (financial, market, competitive)
+- Public web data (with proper attribution)
+- Previously generated insights (with versioning)
+
+**Processing Pipeline:**
+
+```
+User Input → Data Validation → External Data Retrieval → Data Normalization → Conflict Resolution → Confidence Scoring → Final Dataset
+
+```
+
+**Data Normalization Function:**
+
+```jsx
+async function normalizeCompanyData(rawData) {
+  // Create standardized data structure
+  const normalizedData = {
+    company: {
+      name: rawData.name,
+      description: rawData.description,
+      foundingYear: extractFoundingYear(rawData),
+      headquarters: normalizeLocation(rawData.location),
+      employees: reconcileEmployeeCount(rawData),
+      industry: mapToStandardIndustry(rawData.industry),
+      // Additional fields
+    },
+    financials: {
+      revenue: extractAndNormalizeRevenue(rawData),
+      growth: calculateGrowthRates(rawData),
+      funding: normalizeFundingInfo(rawData),
+      // Additional fields
+    },
+    market: {
+      size: extractMarketSize(rawData),
+      growth: extractMarketGrowth(rawData),
+      competitors: identifyCompetitors(rawData),
+      // Additional fields
+    },
+    // Additional categories
+  };
+
+  // Validate and add confidence scores
+  return addDataConfidenceScores(normalizedData);
+}
+
+```
+
+### 3.3 Data Storage for Replit
+
+### 3.3.1 MongoDB Atlas Collections (Optimized for Free Tier)
+
+**Users Collection**
+
+```jsx
+{
+  _id: ObjectId,
+  email: String,
+  passwordHash: String,
+  name: String,
+  createdAt: Date,
+  lastLogin: Date,
+  usageCount: Number,  // Simple counter for usage tracking
+  preferences: {
+    theme: String,
+    defaultTemplate: String
+  }
+}
+
+```
+
+**Reports Collection**
+
+```jsx
+{
+  _id: ObjectId,
+  userId: ObjectId,
+  companyName: String,
+  createdAt: Date,
+  updatedAt: Date,
+  status: String, // draft, generating, completed, etc.
+  templateType: String,  // simplified from complex settings object
+  sections: [
+    {
+      id: String,
+      type: String,
+      title: String,
+      content: String, // May contain markdown or HTML
+      generatedAt: Date,
+      edited: Boolean
+    }
+  ],
+  // Removed versions array to reduce document size
+  storageLocation: String  // Reference to Firebase Storage location
+}
+
+```
+
+**Companies Collection (Simplified)**
+
+```jsx
+{
+  _id: ObjectId,
+  name: String,
+  description: String,
+  foundingYear: Number,  // Changed from Date to reduce complexity
+  headquarters: String,  // Simplified from nested location object
+  industry: String,      // Changed from array to string
+  lastUpdated: Date,
+  userGenerated: Boolean // Flag for user-entered vs API-sourced data
+}
+
+```
+
+**Usage Collection (Instead of complex Analytics)**
+
+```jsx
+{
+  _id: ObjectId,
+  userId: ObjectId,
+  reportId: ObjectId,
+  tokensUsed: Number,
+  date: Date
+}
+
+```
+
+### 3.3.2 Replit Database Usage
+
+The Replit Database will be used for lightweight, frequently accessed data:
+
+```jsx
+// Example Replit Database usage
+const { Client } = require("@replit/database");
+const db = new Client();
+
+// Sessions
+await db.set(`session:${sessionId}`, { userId, expires });
+
+// Rate limiting
+await db.set(`rate:${userId}`, { count, resetTime });
+
+// Feature flags
+await db.set("features", { isPdfExportEnabled: true });
+
+// Cache frequently accessed data
+await db.set(`cache:company:${companyName}`, companyData);
+
+```
+
+### 3.3.3 File Storage Strategy
+
+**Firebase Storage Integration**
+
+```jsx
+// Initialize Firebase Storage
+import { initializeApp } from "firebase/app";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET
+};
+
+const app = initializeApp(firebaseConfig);
+const storage = getStorage(app);
+
+// Save report PDF to Firebase
+async function saveReportPdf(reportId, pdfBuffer) {
+  const fileName = `reports/${reportId}.pdf`;
+  const storageRef = ref(storage, fileName);
+
+  await uploadBytes(storageRef, pdfBuffer);
+  const downloadUrl = await getDownloadURL(storageRef);
+
+  return { fileName, downloadUrl };
+}
+
+```
+
+**Local Temporary Storage**
+For processing needs, we'll use the Replit file system for temporary storage:
+
+```jsx
+const fs = require('fs').promises;
+const path = require('path');
+const os = require('os');
+
+async function createTempFile(data, extension = '.txt') {
+  const tempDir = path.join(os.tmpdir(), 'report-generator');
+  await fs.mkdir(tempDir, { recursive: true });
+
+  const tempFile = path.join(tempDir, `temp-${Date.now()}${extension}`);
+  await fs.writeFile(tempFile, data);
+
+  // Schedule cleanup after 1 hour
+  setTimeout(async () => {
+    try {
+      await fs.unlink(tempFile);
+    } catch (err) {
+      console.error('Failed to delete temp file:', err);
+    }
+  }, 60 * 60 * 1000);
+
+  return tempFile;
+}
+
+```
+
+### 3.4 External API Integrations
+
+### 3.4.1 OpenAI API
+
+```jsx
+const openaiConfig = {
+  baseURL: 'https://api.openai.com/v1',
+  models: {
+    primary: 'gpt-4-turbo',
+    fallback: 'gpt-3.5-turbo'
+  },
+  endpoints: {
+    completions: '/chat/completions',
+    embeddings: '/embeddings'
+  },
+  retryStrategy: {
+    maxRetries: 3,
+    initialDelay: 1000,
+    maxDelay: 10000
+  }
+};
+
+class OpenAIService {
+  constructor(config) {
+    this.config = config;
+    this.axiosInstance = axios.create({
+      baseURL: config.baseURL,
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    this.setupRetryInterceptor();
+  }
+
+  async generateContent(prompt, options = {}) {
+    const model = options.model || this.config.models.primary;
+    const endpoint = this.config.endpoints.completions;
+
+    try {
+      const response = await this.axiosInstance.post(endpoint, {
+        model,
+        messages: [
+          { role: "system", content: "You are a professional financial analyst creating underwriting reports for institutional investors." },
+          { role: "user", content: prompt }
+        ],
+        temperature: options.temperature || 0.3,
+        max_tokens: options.maxTokens || 2000,
+        // Additional parameters
+      });
+
+      return {
+        content: response.data.choices[0].message.content,
+        usage: response.data.usage,
+        model: response.data.model
+      };
+    } catch (error) {
+      if (this.shouldUseFallbackModel(error) && model !== this.config.models.fallback) {
+        return this.generateContent(prompt, {
+          ...options,
+          model: this.config.models.fallback
+        });
+      }
+      throw this.enhanceError(error);
+    }
+  }
+
+  // Additional methods for embeddings, error handling, etc.
+}
+
+```
+
+### 3.4.2 Financial Data APIs
+
+The system will integrate with multiple financial data providers to ensure comprehensive coverage. Primary integrations will include:
+
+**Crunchbase API**
+
+```jsx
+const crunchbaseClient = {
+  baseURL: 'https://api.crunchbase.com/api/v4',
+  endpoints: {
+    companyProfile: '/entities/organizations/{identifier}',
+    fundingRounds: '/entities/organizations/{identifier}/funding_rounds',
+    people: '/entities/organizations/{identifier}/cards/people',
+    news: '/entities/organizations/{identifier}/cards/news'
+  },
+
+  async getCompanyProfile(identifier) {
+    const url = this.endpoints.companyProfile.replace('{identifier}', identifier);
+    return this.makeRequest(url, {
+      field_ids: [
+        "identifier", "name", "short_description", "description", "website_url",
+        "linkedin_url", "twitter_url", "facebook_url", "instagram_url",
+        "founded_on", "operating_status", "company_type", "contact_email",
+        "phone_number", "num_employees_min", "num_employees_max",
+        "founded_on_trust_code", "revenue_range",
+        "last_funding_type", "total_funding_amount", "hub_tags"
+      ].join(',')
+    });
+  },
+
+  // Additional methods
+};
+
+```
+
+**PitchBook Data Integration**
+
+```jsx
+const pitchbookClient = {
+  // Similar structure to Crunchbase client
+  // Specific endpoints for detailed financial metrics
+};
+
+```
+
+**Additional Data Sources**
+
+- LinkedIn API (company information, employee data)
+- Market research databases
+- Industry-specific data sources
+- Alternative data providers
+
+## 4. Security Specifications
+
+### 4.1 Authentication and Authorization
+
+The system will implement a JWT-based authentication system with the following features:
+
+- Role-based access control (User, Admin, API)
+- Multi-factor authentication option
+- OAuth integration for enterprise SSO
+- Session timeout and automatic renewal
+- IP-based login restrictions (optional)
+
+**JWT Structure:**
+
+```jsx
+const jwtPayload = {
+  userId: string,
+  email: string,
+  role: string,
+  orgId: string,
+  permissions: string[],
+  iat: number,
+  exp: number
+};
+
+```
+
+**Authorization Middleware:**
+
+```jsx
+function authorizeEndpoint(requiredRole) {
+  return (req, res, next) => {
+    try {
+      const token = extractTokenFromRequest(req);
+      const decoded = verifyAndDecodeToken(token);
+
+      if (!hasRequiredRole(decoded, requiredRole)) {
+        return res.status(403).json({
+          error: 'Insufficient permissions'
+        });
+      }
+
+      req.user = decoded;
+      next();
+    } catch (error) {
+      return res.status(401).json({
+        error: 'Authentication failed'
+      });
+    }
+  };
+}
+
+```
+
+### 4.2 Data Protection
+
+**Encryption:**
+
+- Data at rest: AES-256 encryption for sensitive data
+- Data in transit: TLS 1.3 for all connections
+- API keys: Encrypted storage with restricted access
+
+**Data Handling:**
+
+- PII minimization principles
+- Automated data classification
+- Retention policies by data category
+- Secure delete procedures
+
+**Sensitive Information Handling:**
+
+```jsx
+function secureCompanyData(data) {
+  // Identify and handle sensitive fields
+  const sensitiveFields = ['revenueActual', 'marginDetails', 'employeeSalaries'];
+
+  // Apply field-level encryption or masking
+  sensitiveFields.forEach(field => {
+    if (data[field]) {
+      data[field] = encryptField(data[field]);
+    }
+  });
+
+  // Add access tracking
+  data.accessMetadata = {
+    lastAccessed: new Date(),
+    accessedBy: getCurrentUserId(),
+    accessReason: getContextualReason()
+  };
+
+  return data;
+}
+
+```
+
+### 4.3 API Security
+
+- Rate limiting: Tiered based on user level
+- API key rotation: Scheduled and on-demand
+- Request signing: HMAC signature verification
+- Input validation: Schema-based validation for all endpoints
+
+**Rate Limiting Implementation:**
+
+```jsx
+const rateLimiters = {
+  standard: rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requests per window
+    standardHeaders: true,
+    keyGenerator: (req) => extractUserIdFromRequest(req)
+  }),
+
+  reportGeneration: rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // 10 report generations per hour
+    standardHeaders: true,
+    keyGenerator: (req) => extractUserIdFromRequest(req)
+  }),
+
+  // Additional limiters for specific endpoints
+};
+
+```
+
+]
+}
+
+```
+
+### 5.4 Security Testing
+
+**Security Testing Plan:**
+- Static Application Security Testing (SAST) with SonarQube
+- Dynamic Application Security Testing (DAST) with OWASP ZAP
+- Dependency vulnerability scanning with Snyk
+- Regular penetration testing by third-party security firm
+
+**Key Security Tests:**
+- Authentication bypass attempts
+- SQL/NoSQL injection
+- Cross-site scripting (XSS)
+- Cross-site request forgery (CSRF)
+- Rate limiting effectiveness
+- Data encryption verification
+- Sensitive data exposure
+
+## 6. Deployment and Infrastructure on Replit
+
+### 6.1 Replit Deployment Strategy
+
+**Deployment Approach:**
+1. Create a Replit project with the appropriate template (Node.js)
+2. Set up version control integration with GitHub
+3. Configure environment secrets for API keys and credentials
+4. Use Replit's built-in deployment capabilities
+5. Implement continuous deployment via GitHub integration
+
+**Replit-Specific Configurations:**
+- Configure `.replit` file to define run commands and environment
+- Set up proper `package.json` scripts for development and production
+- Utilize Replit Database for simple data persistence
+- Configure environment variables through Replit Secrets
+
+**Example .replit Configuration:**
+
+```
+
+language = "nodejs"
+run = "npm start"
+entrypoint = "index.js"
+
+[env]
+NODE_ENV = "production"
+
+[nix]
+channel = "stable-22_11"
+
+[packager]
+language = "nodejs"
+
+[packager.features]
+packageSearch = true
+guessImports = true
+enabledForHosting = false
+
+[debugger]
+support = true
+
+[unitTest]
+language = "nodejs"
+
+[deployment]
+run = ["sh", "-c", "node index.js"]
+deploymentTarget = "cloudrun"
+ignorePorts = false
+
+```
+
+### 6.2 Replit Infrastructure Architecture
+
+**Replit Services Utilized:**
+- Replit App Hosting for the web application
+- Replit Database for lightweight data storage
+- External MongoDB Atlas for primary database (free tier)
+- Replit Secrets for credentials management
+- GitHub integration for version control
+
+**Storage Strategy:**
+- Replit Database for user sessions and lightweight data
+- MongoDB Atlas (free tier) for structured data storage
+- File system storage for temporary report generation
+- External service (like Firebase Storage) for persistent report storage
+
+**Performance Considerations:**
+- Implement efficient caching to work within Replit's resource constraints
+- Optimize report generation to handle memory limitations
+- Implement request queuing for handling concurrent report generations
+- Use worker threads for CPU-intensive operations
+
+**Replit Resource Management:**
+```javascript
+// Example resource management utility
+class ReplitResourceManager {
+  constructor() {
+    this.maxConcurrentJobs = 3;
+    this.activeJobs = 0;
+    this.jobQueue = [];
+  }
+
+  async scheduleJob(jobFunction, jobData) {
+    return new Promise((resolve, reject) => {
+      const job = {
+        function: jobFunction,
+        data: jobData,
+        resolve,
+        reject
+      };
+
+      this.jobQueue.push(job);
+      this.processQueue();
+    });
+  }
+
+  async processQueue() {
+    if (this.activeJobs < this.maxConcurrentJobs && this.jobQueue.length > 0) {
+      const job = this.jobQueue.shift();
+      this.activeJobs++;
+
+      try {
+        const result = await job.function(job.data);
+        job.resolve(result);
+      } catch (error) {
+        job.reject(error);
+      } finally {
+        this.activeJobs--;
+        this.processQueue();
+      }
+    }
+  }
+}
+
+```
+
+### 6.3 Monitoring and Observability in Replit
+
+**Replit-Compatible Monitoring:**
+
+- Simple health check endpoints for uptime monitoring
+- Console logging with structured format for debugging
+- Integration with external monitoring via webhooks
+- Sentry.io for error tracking (free tier)
+
+**Simplified Metrics Tracking:**
+
+```jsx
+// Simple metrics tracking module
+const metrics = {
+  counters: {},
+  timers: {},
+
+  incrementCounter(name) {
+    this.counters[name] = (this.counters[name] || 0) + 1;
+  },
+
+  startTimer(name) {
+    const start = Date.now();
+    return () => {
+      const duration = Date.now() - start;
+      this.timers[name] = this.timers[name] || [];
+      this.timers[name].push(duration);
+
+      // Keep only last 100 measurements
+      if (this.timers[name].length > 100) {
+        this.timers[name].shift();
+      }
+
+      return duration;
+    };
+  },
+
+  getStats() {
+    const timerStats = {};
+
+    Object.entries(this.timers).forEach(([name, durations]) => {
+      const avg = durations.reduce((sum, val) => sum + val, 0) / durations.length;
+      const min = Math.min(...durations);
+      const max = Math.max(...durations);
+
+      timerStats[name] = { avg, min, max, count: durations.length };
+    });
+
+    return {
+      counters: { ...this.counters },
+      timers: timerStats,
+      timestamp: new Date().toISOString()
+    };
+  },
+
+  resetStats() {
+    this.counters = {};
+    this.timers = {};
+  }
+};
+
+// Export metrics endpoint
+app.get('/metrics', (req, res) => {
+  res.json(metrics.getStats());
+});
+
+```
+
+**Health Monitoring:**
+
+- Implement `/health` endpoint for basic service health checks
+- Set up free tier external monitoring service (UptimeRobot)
+- Implement daily status reports via email
+- Create simple dashboard for viewing application metrics
+
+## 7. Development Roadmap for Replit Deployment
+
+### 7.1 Phase 1: Replit-Optimized MVP (Weeks 1-4)
+
+| Week | Focus Area | Key Deliverables |
+| --- | --- | --- |
+| 1 | Replit Setup | - Initial Replit project configuration<br>- Environment setup<br>- GitHub integration<br>- Basic API framework |
+| 2 | Core Features | - Authentication system<br>- MongoDB Atlas connection<br>- Replit Database integration |
+| 3 | OpenAI Integration | - OpenAI service<br>- Basic prompt templates<br>- Single-section generation |
+| 4 | Frontend Basics | - Minimal viable frontend<br>- Simple report creation flow<br>- Basic report viewing |
+
+**Phase 1 Acceptance Criteria:**
+
+- Application runs successfully on Replit
+- Users can sign up and authenticate
+- System can generate at least 2 key report sections
+- Users can view generated report content
+
+### 7.2 Phase 2: Essential Functionality (Weeks 5-8)
+
+| Week | Focus Area | Key Deliverables |
+| --- | --- | --- |
+| 5 | Data Integration | - Basic data source integrations<br>- Simple data normalization<br>- Manual data input forms |
+| 6-7 | Report Generation | - Executive summary section<br>- Company overview section<br>- Market analysis section<br>- Risk assessment section |
+| 8 | Export Features | - Basic PDF export<br>- Simple data visualizations<br>- Report saving functionality |
+
+**Phase 2 Acceptance Criteria:**
+
+- System can generate essential report sections
+- Basic visualizations are included in reports
+- PDF export is functional
+- Application remains stable on Replit
+
+### 7.3 Phase 3: Enhanced Features (Weeks 9-12)
+
+| Week | Focus Area | Key Deliverables |
+| --- | --- | --- |
+| 9-10 | Additional Report Sections | - Competitive analysis<br>- Financial projections<br>- Investment recommendations |
+| 11 | Resource Optimization | - Request queuing system<br>- Memory optimization<br>- Efficient caching strategies |
+| 12 | User Experience | - Improved UI/UX<br>- Report customization options<br>- Interactive controls |
+
+**Phase 3 Acceptance Criteria:**
+
+- Complete report generation with all sections
+- Application performs efficiently within Replit constraints
+- User interface is polished and intuitive
+- Data visualizations are enhanced
+
+### 7.4 Phase 4: Refinement and Scaling (Weeks 13-16)
+
+| Week | Focus Area | Key Deliverables |
+| --- | --- | --- |
+| 13-14 | Prompt Engineering | - Refined AI prompts<br>- Improved report quality<br>- Specialized templates |
+| 15-16 | Monitoring & Reliability | - Health check system<br>- Error handling improvements<br>- Backup strategies |
