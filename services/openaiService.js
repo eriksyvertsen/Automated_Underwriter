@@ -35,6 +35,9 @@ class OpenAIService {
 
   // Set up a simple in-memory cache for API responses
   setupCache() {
+    // Store the config reference for cache to use
+    const serviceConfig = this.config;
+
     this.cache = {
       responses: new Map(),
       maxSize: 100, // Maximum number of cached responses
@@ -70,12 +73,17 @@ class OpenAIService {
       // Generate a cache key from a prompt and options
       generateKey(prompt, options) {
         const optionsString = JSON.stringify({
-          model: options.model || this.config.models.primary,
+          model: options.model || serviceConfig.models.primary,
           temperature: options.temperature || 0.3,
           maxTokens: options.maxTokens || 2000
         });
 
         return `${prompt.substring(0, 100)}_${optionsString}`;
+      },
+
+      // Clear all cache entries
+      clear() {
+        this.responses.clear();
       }
     };
   }
@@ -444,6 +452,94 @@ Provide an objective, evidence-based assessment using the following information:
    - Asset-based valuation
 
 Use a formal, analytical tone and base your analysis on the following information:
+{companyData}`
+      },
+
+      // Market Analysis section
+      marketAnalysis: {
+        version: "1.0.0",
+        systemPrompt: "You are a financial analyst specializing in market research and industry analysis. Your assessments are thorough, data-driven, and provide strategic insights about market dynamics.",
+        template: `Conduct a comprehensive market analysis for {companyName} in the {industry} industry, covering:
+
+1. Market size and growth:
+   - Total addressable market (TAM) size and CAGR
+   - Serviceable addressable market (SAM) estimation
+   - Market share analysis and competitive landscape
+   - Growth drivers and inhibitors
+
+2. Industry trends and dynamics:
+   - Key market trends and technological developments
+   - Regulatory environment and policy impact
+   - Consumer/customer behavior shifts
+   - Supply chain dynamics and constraints
+
+3. Market segmentation:
+   - Key customer segments and their characteristics
+   - Geographic distribution of market opportunity
+   - Vertical markets and their differing needs
+   - Emerging segments with growth potential
+
+4. Market positioning:
+   - Company's positioning within the competitive landscape
+   - Market share and penetration rates
+   - Value proposition and competitive advantages
+   - Target market fit and customer acquisition strategy
+
+5. Market opportunity assessment:
+   - Whitespace analysis and growth vectors
+   - Expansion opportunities (geographic, product, vertical)
+   - Potential partnerships and strategic alliances
+   - Addressable market growth forecast
+
+Use a formal, analytical tone and support your analysis with data from the following information:
+{companyData}`
+      },
+
+      // Risk Assessment section
+      riskAssessment: {
+        version: "1.0.0",
+        systemPrompt: "You are a financial analyst specializing in risk assessment for investment opportunities. Your evaluations are thorough, balanced, and provide clear insights about risk factors and mitigating strategies.",
+        template: `Provide a comprehensive risk assessment for an investment in {companyName}, covering:
+
+1. Market and competitive risks:
+   - Market volatility and cyclicality
+   - Competitive intensity and market share vulnerability
+   - Disruptive technologies and business models
+   - Customer concentration and retention risks
+
+2. Operational risks:
+   - Supply chain vulnerabilities
+   - Manufacturing or service delivery challenges
+   - Talent acquisition and retention
+   - Intellectual property protection
+   - Cybersecurity and data privacy
+
+3. Financial risks:
+   - Revenue growth sustainability
+   - Margin pressure points
+   - Cash flow predictability and volatility
+   - Capital structure and financing risks
+   - Foreign exchange exposure (if applicable)
+
+4. Legal and regulatory risks:
+   - Regulatory compliance challenges
+   - Pending or potential litigation
+   - Intellectual property disputes
+   - Industry-specific regulatory changes
+
+5. Strategic risks:
+   - Business model viability long-term
+   - Execution risks in growth initiatives
+   - Management depth and succession planning
+   - M&A integration challenges (if applicable)
+
+6. Risk mitigation strategies:
+   - Existing risk management approaches
+   - Recommended additional mitigants
+   - Key risk indicators to monitor
+   - Critical success factors for risk management
+
+Use a formal, analytical tone and provide a balanced assessment based on the following information:
 {companyData}`
       }
     };
