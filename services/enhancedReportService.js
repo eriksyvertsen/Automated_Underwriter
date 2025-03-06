@@ -11,6 +11,40 @@ class EnhancedReportService {
     this.initPromise = this.init();
   }
 
+  /**
+   * Create a new report
+   */
+  async createReport(userId, companyDetails) {
+    try {
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
+
+      // Create the report object
+      const newReport = {
+        userId: userId,
+        companyName: companyDetails.name,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        status: 'draft',
+        templateType: companyDetails.templateType || 'standard',
+        sections: [],
+        generationProgress: 0,
+        storageLocation: null
+      };
+
+      // Insert the report into the database
+      const result = await collection.insertOne(newReport);
+
+      // Get the inserted report with its ID
+      newReport._id = result.insertedId;
+
+      return newReport;
+    } catch (error) {
+      console.error('Create report error:', error);
+      throw error;
+    }
+  }
+
   async init() {
     try {
       this.reportsCollection = await getCollection('reports');
@@ -543,6 +577,31 @@ class EnhancedReportService {
       };
     } catch (error) {
       console.error('Export report error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a report
+   */
+  async deleteReport(reportId, userId) {
+    try {
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
+
+      // Convert string ID to ObjectId if needed
+      const objectId = typeof reportId === 'string' ? new ObjectId(reportId) : reportId;
+
+      // Delete the report
+      const result = await collection.deleteOne({ _id: objectId, userId: userId });
+
+      if (result.deletedCount === 0) {
+        throw new Error('Report not found or not authorized');
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Delete report error:', error);
       throw error;
     }
   }
