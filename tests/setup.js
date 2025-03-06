@@ -54,7 +54,7 @@ jest.mock('axios', () => {
       }),
       interceptors: {
         response: {
-          use: jest.fn()
+          use: jest.fn((successFn, errorFn) => ({ success: successFn, error: errorFn }))
         }
       }
     }))
@@ -65,6 +65,9 @@ jest.mock('axios', () => {
 let mongoServer;
 let mongoClient;
 let db;
+
+// Set a longer timeout for MongoDB operations
+jest.setTimeout(30000);
 
 // Initialize database connection for all tests
 beforeAll(async () => {
@@ -83,9 +86,19 @@ beforeAll(async () => {
     await mongoClient.connect();
     db = mongoClient.db();
 
+    // Clear existing collections if any
+    const collections = await db.listCollections().toArray();
+    for (const collection of collections) {
+      await db.collection(collection.name).deleteMany({});
+    }
+
+    // Set up test data in the database
+    await setupTestData(db);
+
     // Set global variables for test helpers
     global.__MONGO_URI__ = mongoUri;
     global.__MONGO_DB_NAME__ = 'jest-test-db';
+    global.__MONGO_DB__ = db;
 
     console.log('MongoDB Memory Server started successfully');
   } catch (error) {
@@ -110,6 +123,39 @@ afterAll(async () => {
   }
 });
 
+// Setup test data
+async function setupTestData(db) {
+  // Create test user
+  const usersCollection = db.collection('users');
+  const testUser = {
+    _id: db.command({ convertToPOJO: true }).ObjectId('60d21b4667d0d8992e610c85'),
+    email: 'test@example.com',
+    passwordHash: '$2a$10$jAJY9cMUTPe.Gz6FVRq02uOfG1vyqbB5.82xNXzKgdKLYMX21riOi', // password123
+    name: 'Test User',
+    createdAt: new Date(),
+    lastLogin: null,
+    usageCount: 0
+  };
+
+  await usersCollection.insertOne(testUser);
+
+  // Create test report
+  const reportsCollection = db.collection('reports');
+  const testReport = {
+    _id: db.command({ convertToPOJO: true }).ObjectId('60d21b4667d0d8992e610c86'),
+    userId: '60d21b4667d0d8992e610c85',
+    companyName: 'Test Company',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    status: 'draft',
+    templateType: 'standard',
+    sections: [],
+    storageLocation: null
+  };
+
+  await reportsCollection.insertOne(testReport);
+}
+
 // Global mock for JWT
 jest.mock('jsonwebtoken', () => {
   return {
@@ -119,7 +165,7 @@ jest.mock('jsonwebtoken', () => {
         throw new Error('Invalid token');
       }
       return {
-        userId: 'test-user-id',
+        userId: '60d21b4667d0d8992e610c85',
         email: 'test@example.com',
         role: 'user'
       };
@@ -135,6 +181,17 @@ jest.mock('bcryptjs', () => {
     compare: jest.fn(async (password, hash) => {
       // For testing, consider 'wrong-password' as invalid
       return password !== 'wrong-password';
+    })
+  };
+});
+
+// Mock MongoDB ObjectId
+jest.mock('mongodb', () => {
+  const actual = jest.requireActual('mongodb');
+  return {
+    ...actual,
+    ObjectId: jest.fn((str) => {
+      return { toString: () => str || 'mock-object-id' };
     })
   };
 });
