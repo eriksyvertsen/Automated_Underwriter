@@ -1,0 +1,932 @@
+// public/admin/dashboard.html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - AI Underwriting Reports</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .dashboard-container {
+      padding: 2rem 0;
+    }
+    .sidebar {
+      position: sticky;
+      top: 2rem;
+    }
+    .card {
+      margin-bottom: 1.5rem;
+      border: none;
+      box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .stats-card {
+      text-align: center;
+      padding: 1.5rem;
+    }
+    .stats-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      color: #007bff;
+    }
+    .stats-value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .stats-label {
+      font-size: 0.875rem;
+      color: #6c757d;
+    }
+    .chart-container {
+      height: 300px;
+      position: relative;
+    }
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .system-status {
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 500;
+    }
+    .system-status.good {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .system-status.warning {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .system-status.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .job-status-table tbody tr:hover {
+      background-color: #f1f8ff;
+    }
+    .update-time {
+      font-size: 0.75rem;
+      color: #6c757d;
+      margin-bottom: 0;
+    }
+    .refresh-btn {
+      font-size: 0.875rem;
+      padding: 0.25rem 0.5rem;
+    }
+    .status-badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 50rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .status-badge.queued {
+      background-color: #e2eafc;
+      color: #3949ab;
+    }
+    .status-badge.processing {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .status-badge.completed {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .status-badge.failed {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .status-badge.retrying {
+      background-color: #ffe5d9;
+      color: #d84a1b;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/admin/dashboard.html">AI Underwriting Reports - Admin</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <a class="nav-link active" href="/admin/dashboard.html">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/users.html">Users</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/reports.html">Reports</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/settings.html">Settings</a>
+          </li>
+        </ul>
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/dashboard.html">User Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" id="logout-btn">Logout</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container dashboard-container">
+    <div class="row">
+      <!-- Main Content -->
+      <div class="col-lg-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1>System Dashboard</h1>
+          <div class="d-flex align-items-center">
+            <p class="update-time me-2 mb-0" id="last-update-time">Last updated: --</p>
+            <button id="refresh-btn" class="btn btn-sm btn-outline-primary refresh-btn">
+              <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Status Overview -->
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <div class="card stats-card">
+              <div class="stats-icon">👥</div>
+              <div class="stats-value" id="users-count">--</div>
+              <div class="stats-label">Total Users</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card stats-card">
+              <div class="stats-icon">📊</div>
+              <div class="stats-value" id="reports-count">--</div>
+              <div class="stats-label">Reports Generated</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card stats-card">
+              <div class="stats-icon">⚡</div>
+              <div class="stats-value" id="api-calls-count">--</div>
+              <div class="stats-label">OpenAI API Calls</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Health -->
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">System Health</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <div class="d-flex flex-column">
+                  <span class="text-muted mb-2">API Service</span>
+                  <span class="system-status good" id="api-service-status">
+                    <span class="status-icon">●</span> Operational
+                  </span>
+                </div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <div class="d-flex flex-column">
+                  <span class="text-muted mb-2">Database</span>
+                  <span class="system-status good" id="database-status">
+                    <span class="status-icon">●</span> Operational
+                  </span>
+                </div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <div class="d-flex flex-column">
+                  <span class="text-muted mb-2">OpenAI Connection</span>
+                  <span class="system-status good" id="openai-status">
+                    <span class="status-icon">●</span> Operational
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <h6>Memory Usage</h6>
+              <div class="progress">
+                <div id="memory-usage-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Usage Metrics Chart -->
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Usage Metrics</h5>
+            <div class="btn-group">
+              <button type="button" class="btn btn-sm btn-outline-secondary time-range-btn active" data-range="7">7 Days</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary time-range-btn" data-range="30">30 Days</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary time-range-btn" data-range="90">90 Days</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <div class="loading-overlay" id="usage-chart-loading">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+              <canvas id="usage-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Generation Queue -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Report Generation Queue</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table job-status-table">
+                <thead>
+                  <tr>
+                    <th>Job ID</th>
+                    <th>Report</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Created</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody id="job-queue-table-body">
+                  <tr>
+                    <td colspan="6" class="text-center">Loading jobs...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Response Time Chart -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">API Response Times</h5>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <div class="loading-overlay" id="response-times-chart-loading">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+              <canvas id="response-times-chart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="col-lg-3">
+        <div class="sidebar">
+          <!-- System Information -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <h5 class="mb-0">System Info</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="text-muted mb-1">Node.js Version</div>
+                <div id="node-version">--</div>
+              </div>
+              <div class="mb-3">
+                <div class="text-muted mb-1">Uptime</div>
+                <div id="system-uptime">--</div>
+              </div>
+              <div class="mb-3">
+                <div class="text-muted mb-1">Server Time</div>
+                <div id="server-time">--</div>
+              </div>
+              <div>
+                <div class="text-muted mb-1">Environment</div>
+                <div id="environment">--</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <h5 class="mb-0">Recent Activity</h5>
+            </div>
+            <div class="card-body p-0">
+              <ul class="list-group list-group-flush" id="recent-activity-list">
+                <li class="list-group-item d-flex align-items-center">
+                  <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                  <span>Loading activity...</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="list-group list-group-flush">
+              <a href="#" class="list-group-item list-group-item-action" id="refresh-cache-btn">
+                <i class="bi bi-arrow-repeat"></i> Refresh Caches
+              </a>
+              <a href="#" class="list-group-item list-group-item-action" id="test-openai-btn">
+                <i class="bi bi-check2-circle"></i> Test OpenAI Connection
+              </a>
+              <a href="#" class="list-group-item list-group-item-action" id="clear-temp-files-btn">
+                <i class="bi bi-trash"></i> Clear Temporary Files
+              </a>
+              <a href="#" class="list-group-item list-group-item-action" id="download-logs-btn">
+                <i class="bi bi-file-earmark-text"></i> Download Logs
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Authentication check
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+      if (!token || user.role !== 'admin') {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      // Initialize charts
+      let usageChart = null;
+      let responseTimesChart = null;
+
+      // Load dashboard data
+      loadDashboardData();
+
+      // Update server time periodically
+      updateServerTime();
+      setInterval(updateServerTime, 1000);
+
+      // Refresh button
+      document.getElementById('refresh-btn').addEventListener('click', function() {
+        loadDashboardData();
+      });
+
+      // Time range buttons for usage chart
+      document.querySelectorAll('.time-range-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          // Update active state
+          document.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+
+          // Reload chart with new range
+          const days = parseInt(this.dataset.range);
+          loadUsageChart(days);
+        });
+      });
+
+      // Quick action buttons
+      document.getElementById('refresh-cache-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        refreshCaches();
+      });
+
+      document.getElementById('test-openai-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        testOpenAIConnection();
+      });
+
+      document.getElementById('clear-temp-files-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        clearTempFiles();
+      });
+
+      document.getElementById('download-logs-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        downloadLogs();
+      });
+
+      // Logout button
+      document.getElementById('logout-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login.html';
+      });
+
+      async function loadDashboardData() {
+        try {
+          updateLastRefreshTime();
+
+          // Load system stats
+          await loadSystemStats();
+
+          // Load health status
+          await loadHealthStatus();
+
+          // Load usage chart (default 7 days)
+          await loadUsageChart(7);
+
+          // Load job queue
+          await loadJobQueue();
+
+          // Load response times chart
+          await loadResponseTimesChart();
+
+          // Load recent activity
+          await loadRecentActivity();
+        } catch (error) {
+          console.error('Error loading dashboard data:', error);
+          alert('Failed to load dashboard data. Please try again.');
+        }
+      }
+
+      function updateLastRefreshTime() {
+        const now = new Date();
+        document.getElementById('last-update-time').textContent = `Last updated: ${now.toLocaleTimeString()}`;
+      }
+
+      function updateServerTime() {
+        const now = new Date();
+        document.getElementById('server-time').textContent = now.toLocaleString();
+      }
+
+      // Helper functions to simulate API calls for demo purposes
+      // These would be replaced with actual API calls in production
+
+      async function loadSystemStats() {
+        // Simulated data - replace with actual API call
+        const stats = {
+          users: 127,
+          reports: 892,
+          apiCalls: 3578,
+          nodeVersion: 'v18.16.0',
+          uptime: '3 days, 7 hours',
+          environment: 'Replit (Production)'
+        };
+
+        document.getElementById('users-count').textContent = stats.users;
+        document.getElementById('reports-count').textContent = stats.reports;
+        document.getElementById('api-calls-count').textContent = stats.apiCalls;
+        document.getElementById('node-version').textContent = stats.nodeVersion;
+        document.getElementById('system-uptime').textContent = stats.uptime;
+        document.getElementById('environment').textContent = stats.environment;
+      }
+
+      async function loadHealthStatus() {
+        // Simulated data - replace with actual API call
+        const health = {
+          apiService: { status: 'good', message: 'Operational' },
+          database: { status: 'good', message: 'Operational' },
+          openai: { status: 'good', message: 'Operational' },
+          memoryUsage: 42 // percentage
+        };
+
+        updateStatusElement('api-service-status', health.apiService);
+        updateStatusElement('database-status', health.database);
+        updateStatusElement('openai-status', health.openai);
+
+        const memoryBar = document.getElementById('memory-usage-bar');
+        memoryBar.style.width = `${health.memoryUsage}%`;
+        memoryBar.textContent = `${health.memoryUsage}%`;
+        memoryBar.setAttribute('aria-valuenow', health.memoryUsage);
+
+        // Update color based on usage
+        if (health.memoryUsage > 80) {
+          memoryBar.classList.remove('bg-success', 'bg-warning');
+          memoryBar.classList.add('bg-danger');
+        } else if (health.memoryUsage > 60) {
+          memoryBar.classList.remove('bg-success', 'bg-danger');
+          memoryBar.classList.add('bg-warning');
+        } else {
+          memoryBar.classList.remove('bg-warning', 'bg-danger');
+          memoryBar.classList.add('bg-success');
+        }
+      }
+
+      function updateStatusElement(elementId, status) {
+        const element = document.getElementById(elementId);
+
+        element.className = `system-status ${status.status}`;
+        element.innerHTML = `<span class="status-icon">●</span> ${status.message}`;
+      }
+
+      async function loadUsageChart(days = 7) {
+        // Show loading overlay
+        document.getElementById('usage-chart-loading').style.display = 'flex';
+
+        // Simulated data - replace with actual API call
+        const labels = [];
+        const reportsData = [];
+        const apiCallsData = [];
+
+        // Generate dates for the past N days
+        const now = new Date();
+        for (let i = days - 1; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(date.getDate() - i);
+          labels.push(date.toLocaleDateString());
+
+          // Generate some random data
+          reportsData.push(Math.floor(Math.random() * 20) + 5);
+          apiCallsData.push(Math.floor(Math.random() * 100) + 20);
+        }
+
+        // Destroy existing chart if it exists
+        if (usageChart) {
+          usageChart.destroy();
+        }
+
+        // Create the chart
+        const ctx = document.getElementById('usage-chart').getContext('2d');
+        usageChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Reports Generated',
+                data: reportsData,
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                tension: 0.1,
+                fill: true
+              },
+              {
+                label: 'API Calls',
+                data: apiCallsData,
+                borderColor: '#20c997',
+                backgroundColor: 'rgba(32, 201, 151, 0.1)',
+                tension: 0.1,
+                fill: true
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top'
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        });
+
+        // Hide loading overlay
+        document.getElementById('usage-chart-loading').style.display = 'none';
+      }
+
+      async function loadJobQueue() {
+        // Simulated data - replace with actual API call
+        const jobs = [
+          {
+            id: 'job-123456789',
+            reportName: 'Acme Corp',
+            status: 'processing',
+            progress: 45,
+            createdAt: new Date(Date.now() - 30 * 60000),
+            updatedAt: new Date(Date.now() - 5 * 60000)
+          },
+          {
+            id: 'job-123456788',
+            reportName: 'TechStartup Inc',
+            status: 'queued',
+            progress: 0,
+            createdAt: new Date(Date.now() - 15 * 60000),
+            updatedAt: new Date(Date.now() - 15 * 60000)
+          },
+          {
+            id: 'job-123456787',
+            reportName: 'Global Finance Ltd',
+            status: 'completed',
+            progress: 100,
+            createdAt: new Date(Date.now() - 120 * 60000),
+            updatedAt: new Date(Date.now() - 100 * 60000)
+          },
+          {
+            id: 'job-123456786',
+            reportName: 'Innovate Solutions',
+            status: 'failed',
+            progress: 27,
+            createdAt: new Date(Date.now() - 180 * 60000),
+            updatedAt: new Date(Date.now() - 170 * 60000)
+          },
+          {
+            id: 'job-123456785',
+            reportName: 'Future Robotics',
+            status: 'retrying',
+            progress: 12,
+            createdAt: new Date(Date.now() - 60 * 60000),
+            updatedAt: new Date(Date.now() - 10 * 60000)
+          }
+        ];
+
+        const tableBody = document.getElementById('job-queue-table-body');
+        tableBody.innerHTML = '';
+
+        jobs.forEach(job => {
+          const row = document.createElement('tr');
+
+          // Job ID column
+          const idCell = document.createElement('td');
+          idCell.textContent = job.id;
+          row.appendChild(idCell);
+
+          // Report name column
+          const reportCell = document.createElement('td');
+          reportCell.textContent = job.reportName;
+          row.appendChild(reportCell);
+
+          // Status column
+          const statusCell = document.createElement('td');
+          const statusBadge = document.createElement('span');
+          statusBadge.className = `status-badge ${job.status}`;
+          statusBadge.textContent = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+          statusCell.appendChild(statusBadge);
+          row.appendChild(statusCell);
+
+          // Progress column
+          const progressCell = document.createElement('td');
+          const progressBar = document.createElement('div');
+          progressBar.className = 'progress';
+          progressBar.style.height = '10px';
+
+          const progressBarInner = document.createElement('div');
+          progressBarInner.className = `progress-bar ${getProgressBarClass(job.status)}`;
+          progressBarInner.style.width = `${job.progress}%`;
+          progressBarInner.setAttribute('aria-valuenow', job.progress);
+          progressBarInner.setAttribute('aria-valuemin', 0);
+          progressBarInner.setAttribute('aria-valuemax', 100);
+
+          progressBar.appendChild(progressBarInner);
+          progressCell.appendChild(progressBar);
+          row.appendChild(progressCell);
+
+          // Created at column
+          const createdCell = document.createElement('td');
+          createdCell.textContent = formatDate(job.createdAt);
+          row.appendChild(createdCell);
+
+          // Updated at column
+          const updatedCell = document.createElement('td');
+          updatedCell.textContent = formatDate(job.updatedAt);
+          row.appendChild(updatedCell);
+
+          tableBody.appendChild(row);
+        });
+      }
+
+      function getProgressBarClass(status) {
+        switch (status) {
+          case 'processing': return 'bg-warning';
+          case 'completed': return 'bg-success';
+          case 'failed': return 'bg-danger';
+          case 'retrying': return 'bg-info';
+          default: return 'bg-primary';
+        }
+      }
+
+      function formatDate(date) {
+        return date.toLocaleString();
+      }
+
+      async function loadResponseTimesChart() {
+        // Show loading overlay
+        document.getElementById('response-times-chart-loading').style.display = 'flex';
+
+        // Simulated data - replace with actual API call
+        const data = {
+          labels: ['Reports API', 'Users API', 'Auth API', 'Export API', 'OpenAI API'],
+          p50: [120, 95, 80, 200, 850],
+          p90: [250, 180, 150, 350, 1200],
+          p99: [450, 320, 270, 500, 2000]
+        };
+
+        // Destroy existing chart if it exists
+        if (responseTimesChart) {
+          responseTimesChart.destroy();
+        }
+
+        // Create the chart
+        const ctx = document.getElementById('response-times-chart').getContext('2d');
+        responseTimesChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.labels,
+            datasets: [
+              {
+                label: 'p50 (ms)',
+                data: data.p50,
+                backgroundColor: '#20c997'
+              },
+              {
+                label: 'p90 (ms)',
+                data: data.p90,
+                backgroundColor: '#fd7e14'
+              },
+              {
+                label: 'p99 (ms)',
+                data: data.p99,
+                backgroundColor: '#dc3545'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top'
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: 'Response Time (ms)'
+                }
+              }
+            }
+          }
+        });
+
+        // Hide loading overlay
+        document.getElementById('response-times-chart-loading').style.display = 'none';
+      }
+
+      async function loadRecentActivity() {
+        // Simulated data - replace with actual API call
+        const activities = [
+          {
+            type: 'user_registered',
+            message: 'New user registered',
+            time: new Date(Date.now() - 5 * 60000)
+          },
+          {
+            type: 'report_generated',
+            message: 'Report generation completed',
+            time: new Date(Date.now() - 15 * 60000)
+          },
+          {
+            type: 'api_error',
+            message: 'OpenAI API rate limit reached',
+            time: new Date(Date.now() - 47 * 60000)
+          },
+          {
+            type: 'system',
+            message: 'System restarted',
+            time: new Date(Date.now() - 120 * 60000)
+          },
+          {
+            type: 'admin_login',
+            message: 'Admin user logged in',
+            time: new Date(Date.now() - 180 * 60000)
+          }
+        ];
+
+        const activityList = document.getElementById('recent-activity-list');
+        activityList.innerHTML = '';
+
+        activities.forEach(activity => {
+          const listItem = document.createElement('li');
+          listItem.className = 'list-group-item d-flex align-items-center p-2';
+
+          const icon = document.createElement('div');
+          icon.className = `me-3 ${getActivityIcon(activity.type)}`;
+
+          const content = document.createElement('div');
+          content.className = 'flex-grow-1';
+
+          const message = document.createElement('div');
+          message.className = 'mb-0';
+          message.textContent = activity.message;
+
+          const time = document.createElement('small');
+          time.className = 'text-muted';
+          time.textContent = formatTimeAgo(activity.time);
+
+          content.appendChild(message);
+          content.appendChild(time);
+
+          listItem.appendChild(icon);
+          listItem.appendChild(content);
+
+          activityList.appendChild(listItem);
+        });
+      }
+
+      function getActivityIcon(type) {
+        switch (type) {
+          case 'user_registered': return 'text-success bi bi-person-plus';
+          case 'report_generated': return 'text-primary bi bi-file-earmark-text';
+          case 'api_error': return 'text-danger bi bi-exclamation-triangle';
+          case 'system': return 'text-info bi bi-gear';
+          case 'admin_login': return 'text-warning bi bi-shield-lock';
+          default: return 'text-secondary bi bi-circle';
+        }
+      }
+
+      function formatTimeAgo(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+
+        const diffDays = Math.floor(diffHours / 24);
+        return `${diffDays}d ago`;
+      }
+
+      // Quick action functions
+
+      async function refreshCaches() {
+        try {
+          // Normally you would call an API endpoint here
+          alert('Caches refreshed successfully!');
+        } catch (error) {
+          console.error('Error refreshing caches:', error);
+          alert('Failed to refresh caches. Please try again.');
+        }
+      }
+
+      async function testOpenAIConnection() {
+        try {
+          // Simulate API call with delay
+          setTimeout(() => {
+            alert('OpenAI connection test successful!');
+          }, 1000);
+        } catch (error) {
+          console.error('OpenAI connection test failed:', error);
+          alert('OpenAI connection test failed. Please check your API keys.');
+        }
+      }
+
+      async function clearTempFiles() {
+        try {
+          // Normally you would call an API endpoint here
+          alert('Temporary files cleared successfully!');
+        } catch (error) {
+          console.error('Error clearing temp files:', error);
+          alert('Failed to clear temporary files. Please try again.');
+        }
+      }
+
+      async function downloadLogs() {
+        try {
+          // Normally you would generate and download a log file here
+          alert('This would download the system logs in a production environment.');
+        } catch (error) {
+          console.error('Error downloading logs:', error);
+          alert('Failed to download logs. Please try again.');
+        }
+      }
+    });
+  </script>
+</body>
+</html>

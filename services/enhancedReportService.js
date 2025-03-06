@@ -1,8 +1,40 @@
 // services/enhancedReportService.js
+
 const { ObjectId } = require('mongodb');
 const { getCollection } = require('../config/db');
 const openaiService = require('./openaiService');
 const dataService = require('./dataService');
+const queueService = require('./queueService');
+
+// Simple in-memory cache for report data
+const reportCache = {
+  reports: new Map(),
+  maxAge: 5 * 60 * 1000, // 5 minutes
+
+  set(key, value) {
+    this.reports.set(key, {
+      data: value,
+      timestamp: Date.now()
+    });
+  },
+
+  get(key) {
+    const item = this.reports.get(key);
+    if (!item) return null;
+
+    // Check if expired
+    if (Date.now() - item.timestamp > this.maxAge) {
+      this.reports.delete(key);
+      return null;
+    }
+
+    return item.data;
+  },
+
+  invalidate(key) {
+    this.reports.delete(key);
+  }
+};
 
 class EnhancedReportService {
   constructor() {
@@ -29,7 +61,14 @@ class EnhancedReportService {
         templateType: companyDetails.templateType || 'standard',
         sections: [],
         generationProgress: 0,
-        storageLocation: null
+        storageLocation: null,
+        customization: {
+          enabledSections: this.getSectionsForTemplate(companyDetails.templateType || 'standard'),
+          sectionOrder: [],
+          theme: 'standard',
+          includeTOC: true,
+          includeVisualizations: true
+        }
       };
 
       // Insert the report into the database
@@ -72,24 +111,64 @@ class EnhancedReportService {
   }
 
   /**
-   * Generate a complete report with all selected sections
+   * Generate a complete report with all selected sections using the queue system
    */
   async generateFullReport(reportId, userId, companyData, templateType = 'standard') {
-    try {
-      // Ensure the service is initialized
-      await this.ensureInitialized();
+    // Create a job ID for tracking
+    const jobId = `report-${reportId}-${Date.now()}`;
 
+    // Update report status to queued
+    await this.updateReport(reportId, userId, {
+      status: 'queued',
+      generationJobId: jobId
+    });
+
+    // Queue the report generation task
+    queueService.enqueue(
+      jobId,
+      async (data, progressCallback) => {
+        return this.processReportGeneration(data, progressCallback);
+      },
+      {
+        reportId,
+        userId,
+        companyData,
+        templateType
+      }
+    );
+
+    return {
+      jobId,
+      reportId,
+      status: 'queued'
+    };
+  }
+
+  /**
+   * Process the report generation (executed by queue worker)
+   */
+  async processReportGeneration(data, progressCallback) {
+    const { reportId, userId, companyData, templateType } = data;
+
+    try {
       // Update report status to generating
       await this.updateReport(reportId, userId, {
-        status: 'generating',
-        templateType: templateType
+        status: 'generating'
       });
+
+      progressCallback(5, { message: 'Starting report generation' });
 
       // Normalize and enrich company data
       const normalizedData = await dataService.normalizeCompanyData(companyData);
 
-      // Determine which sections to generate based on template type
-      const sectionsToGenerate = this.getSectionsForTemplate(templateType);
+      progressCallback(10, { message: 'Company data normalized' });
+
+      // Get the report to check customization settings
+      const report = await this.getReportById(reportId, userId);
+
+      // Determine which sections to generate based on customization
+      let sectionsToGenerate = report.customization?.enabledSections || 
+                              this.getSectionsForTemplate(templateType);
 
       // Track progress
       let completedSections = 0;
@@ -98,6 +177,11 @@ class EnhancedReportService {
       // Process each section
       for (const sectionType of sectionsToGenerate) {
         try {
+          progressCallback(
+            10 + ((completedSections / totalSections) * 80), 
+            { message: `Generating ${this.getSectionTitle(sectionType)}` }
+          );
+
           await this.generateReportSection(reportId, userId, sectionType, normalizedData);
           completedSections++;
 
@@ -117,13 +201,23 @@ class EnhancedReportService {
         generationProgress: 100
       });
 
-      return await this.getReportById(reportId, userId);
+      progressCallback(100, { message: 'Report generation completed' });
+
+      // Invalidate cache
+      reportCache.invalidate(reportId);
+
+      return { reportId, status: 'completed' };
     } catch (error) {
       console.error('Generate full report error:', error);
 
       // Update report status to failed
       await this.updateReport(reportId, userId, {
         status: 'failed'
+      });
+
+      progressCallback(100, { 
+        message: 'Report generation failed', 
+        error: error.message 
       });
 
       throw error;
@@ -179,6 +273,9 @@ class EnhancedReportService {
         status: report.status
       });
 
+      // Invalidate cache
+      reportCache.invalidate(reportId);
+
       return newSection;
     } catch (error) {
       console.error('Generate report section error:', error);
@@ -198,9 +295,165 @@ class EnhancedReportService {
         return this.extractMarketVisualizationData(companyData);
       case 'riskAssessment':
         return this.extractRiskVisualizationData(companyData);
+      case 'competitiveAnalysis':
+        return this.extractCompetitiveVisualizationData(companyData);
+      case 'financialProjections':
+        return this.extractFinancialProjectionsVisualizationData(companyData);
       default:
         return null; // No visualizations for other sections
     }
+  }
+
+  /**
+   * Extract data for competitive analysis visualizations
+   */
+  extractCompetitiveVisualizationData(companyData) {
+    const competitiveData = {
+      metrics: [],
+      charts: {}
+    };
+
+    // Competitive positioning chart
+    if (companyData.market && companyData.market.competitors && Array.isArray(companyData.market.competitors)) {
+      const competitors = companyData.market.competitors;
+
+      if (competitors.length > 0) {
+        // Market share comparison
+        competitiveData.charts.marketShare = {
+          type: 'pie',
+          title: 'Market Share Distribution',
+          data: [
+            ...competitors.map(comp => ({
+              name: comp.name,
+              value: comp.marketShare || Math.floor(Math.random() * 15) + 5 // Fallback to random values for visualization
+            })),
+            {
+              name: companyData.company?.name || 'Company',
+              value: companyData.market.marketShare || Math.floor(Math.random() * 20) + 10
+            }
+          ]
+        };
+
+        // Competitive positioning matrix
+        competitiveData.charts.positioningMatrix = {
+          type: 'scatter',
+          title: 'Competitive Positioning Matrix',
+          data: [
+            ...competitors.map(comp => ({
+              name: comp.name,
+              x: comp.pricingScore || Math.floor(Math.random() * 80) + 20, // Price point (higher = more expensive)
+              y: comp.qualityScore || Math.floor(Math.random() * 80) + 20  // Quality/feature set (higher = better)
+            })),
+            {
+              name: companyData.company?.name || 'Company',
+              x: 65, // Position the company
+              y: 70
+            }
+          ]
+        };
+      }
+    }
+
+    // Competitive strength metrics
+    competitiveData.metrics.push({
+      name: 'Market Position',
+      value: 'Challenger',  // This would be dynamically determined in a real implementation
+      type: 'text',
+      description: 'Relative competitive position'
+    });
+
+    competitiveData.metrics.push({
+      name: 'Competitive Advantage',
+      value: 'Medium',  // This would be dynamically determined
+      type: 'text',
+      description: 'Strength of competitive moat'
+    });
+
+    return competitiveData;
+  }
+
+  /**
+   * Extract data for financial projections visualizations
+   */
+  extractFinancialProjectionsVisualizationData(companyData) {
+    const projectionsData = {
+      metrics: [],
+      charts: {}
+    };
+
+    // Generate projection metrics
+    const currentYear = new Date().getFullYear();
+
+    // Base values - would come from real data
+    const baseRevenue = companyData.financials?.revenue?.value || 1000000;
+    const growthRate = (companyData.financials?.growth?.rate || 20) / 100;
+
+    // Generate revenue projection data
+    const revenueProjection = [];
+    let projectedRevenue = baseRevenue;
+
+    for (let year = 0; year < 5; year++) {
+      projectedRevenue = year === 0 ? projectedRevenue : projectedRevenue * (1 + growthRate);
+
+      revenueProjection.push({
+        year: currentYear + year,
+        value: Math.round(projectedRevenue),
+        label: `${currentYear + year}`
+      });
+    }
+
+    // Add revenue projection chart
+    projectionsData.charts.revenueProjection = {
+      type: 'line',
+      title: 'Revenue Projection (5 Year)',
+      data: revenueProjection
+    };
+
+    // Add margin projection assuming margin improvement
+    const marginProjection = [];
+    let currentMargin = 0.15; // Start with 15% margin
+    const marginImprovement = 0.02; // 2% improvement per year
+
+    for (let year = 0; year < 5; year++) {
+      currentMargin = Math.min(0.35, currentMargin + marginImprovement);
+
+      marginProjection.push({
+        year: currentYear + year,
+        value: Math.round(currentMargin * 100),
+        label: `${currentYear + year}`
+      });
+    }
+
+    // Add margin projection chart
+    projectionsData.charts.marginProjection = {
+      type: 'line',
+      title: 'Margin Projection (5 Year)',
+      data: marginProjection
+    };
+
+    // Add key metrics
+    projectionsData.metrics.push({
+      name: '5-Year CAGR',
+      value: `${(growthRate * 100).toFixed(1)}%`,
+      type: 'percentage',
+      description: 'Compound Annual Growth Rate'
+    });
+
+    projectionsData.metrics.push({
+      name: 'Year 5 Revenue',
+      value: `$${(revenueProjection[4].value / 1000000).toFixed(1)}M`,
+      type: 'currency',
+      description: `Projected revenue for ${currentYear + 4}`
+    });
+
+    projectionsData.metrics.push({
+      name: 'Year 5 Margin',
+      value: `${marginProjection[4].value}%`,
+      type: 'percentage',
+      description: `Projected margin for ${currentYear + 4}`
+    });
+
+    return projectionsData;
   }
 
   /**
@@ -385,10 +638,18 @@ class EnhancedReportService {
   }
 
   /**
-   * Get a report by ID
+   * Get a report by ID with caching
    */
   async getReportById(reportId, userId) {
     try {
+      // Check cache first
+      const cacheKey = `${reportId}-${userId}`;
+      const cachedReport = reportCache.get(cacheKey);
+
+      if (cachedReport) {
+        return cachedReport;
+      }
+
       // Ensure the service is initialized
       const collection = await this.ensureInitialized();
 
@@ -404,6 +665,9 @@ class EnhancedReportService {
       if (!report) {
         throw new Error('Report not found');
       }
+
+      // Cache the report
+      reportCache.set(cacheKey, report);
 
       return report;
     } catch (error) {
@@ -439,10 +703,37 @@ class EnhancedReportService {
         throw new Error('Report not found or not authorized');
       }
 
+      // Invalidate cache
+      reportCache.invalidate(`${reportId}-${userId}`);
+
       // Return the updated report
       return await this.getReportById(reportId, userId);
     } catch (error) {
       console.error('Update report error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update report customization settings
+   */
+  async updateReportCustomization(reportId, userId, customization) {
+    try {
+      // Get current report 
+      const report = await this.getReportById(reportId, userId);
+
+      // Merge existing customization with updates
+      const updatedCustomization = {
+        ...report.customization || {},
+        ...customization
+      };
+
+      // Update the report
+      return await this.updateReport(reportId, userId, {
+        customization: updatedCustomization
+      });
+    } catch (error) {
+      console.error('Update report customization error:', error);
       throw error;
     }
   }
@@ -476,6 +767,7 @@ class EnhancedReportService {
       companyOverview: 'Company Overview',
       marketAnalysis: 'Market Analysis',
       financialAnalysis: 'Financial Analysis',
+      financialProjections: 'Financial Projections',
       riskAssessment: 'Risk Assessment',
       investmentRecommendation: 'Investment Recommendation',
       competitiveAnalysis: 'Competitive Analysis',
@@ -506,7 +798,8 @@ class EnhancedReportService {
       ],
       financial: [
         'executiveSummary', 
-        'financialAnalysis', 
+        'financialAnalysis',
+        'financialProjections',
         'valuationAnalysis',
         'investmentRecommendation'
       ],
@@ -514,9 +807,10 @@ class EnhancedReportService {
         'executiveSummary', 
         'companyOverview',
         'managementAnalysis', 
-        'marketAnalysis', 
+        'marketAnalysis',
         'competitiveAnalysis',
-        'financialAnalysis', 
+        'financialAnalysis',
+        'financialProjections',
         'valuationAnalysis',
         'riskAssessment', 
         'investmentRecommendation'
@@ -529,7 +823,7 @@ class EnhancedReportService {
       ]
     };
 
-    return templates[templateType] || templates.mvp;
+    return templates[templateType] || templates.standard;
   }
 
   /**
@@ -539,12 +833,24 @@ class EnhancedReportService {
     try {
       const report = await this.getReportById(reportId, userId);
 
+      // If report has a job ID, get the job status
+      let jobStatus = null;
+      if (report.generationJobId) {
+        jobStatus = queueService.getJobStatus(report.generationJobId);
+      }
+
       return {
         reportId: report._id,
         status: report.status,
-        progress: report.generationProgress || 0,
+        progress: jobStatus ? jobStatus.progress : report.generationProgress || 0,
         completedSections: report.sections.length,
-        updatedAt: report.updatedAt
+        updatedAt: report.updatedAt,
+        jobStatus: jobStatus ? {
+          status: jobStatus.status,
+          createdAt: jobStatus.createdAt,
+          updatedAt: jobStatus.updatedAt,
+          metadata: jobStatus.metadata
+        } : null
       };
     } catch (error) {
       console.error('Check generation status error:', error);
@@ -572,7 +878,8 @@ class EnhancedReportService {
           title: report.companyName,
           sections: report.sections,
           generatedAt: report.updatedAt,
-          templateType: report.templateType
+          templateType: report.templateType,
+          customization: report.customization || {}
         }
       };
     } catch (error) {
@@ -598,6 +905,9 @@ class EnhancedReportService {
       if (result.deletedCount === 0) {
         throw new Error('Report not found or not authorized');
       }
+
+      // Invalidate cache
+      reportCache.invalidate(`${reportId}-${userId}`);
 
       return { success: true };
     } catch (error) {

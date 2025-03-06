@@ -1,3 +1,5 @@
+// services/openaiService.js
+
 const axios = require('axios');
 
 class OpenAIService {
@@ -28,6 +30,54 @@ class OpenAIService {
     });
 
     this.setupRetryInterceptor();
+    this.setupCache();
+  }
+
+  // Set up a simple in-memory cache for API responses
+  setupCache() {
+    this.cache = {
+      responses: new Map(),
+      maxSize: 100, // Maximum number of cached responses
+      ttl: 30 * 60 * 1000, // 30 minutes TTL
+
+      // Add an item to the cache with TTL
+      set(key, value) {
+        // Remove oldest entry if we're at capacity
+        if (this.responses.size >= this.maxSize) {
+          const oldestKey = this.responses.keys().next().value;
+          this.responses.delete(oldestKey);
+        }
+
+        this.responses.set(key, {
+          value,
+          expires: Date.now() + this.ttl
+        });
+      },
+
+      // Get an item from the cache if it exists and hasn't expired
+      get(key) {
+        const item = this.responses.get(key);
+        if (!item) return null;
+
+        if (item.expires < Date.now()) {
+          this.responses.delete(key);
+          return null;
+        }
+
+        return item.value;
+      },
+
+      // Generate a cache key from a prompt and options
+      generateKey(prompt, options) {
+        const optionsString = JSON.stringify({
+          model: options.model || this.config.models.primary,
+          temperature: options.temperature || 0.3,
+          maxTokens: options.maxTokens || 2000
+        });
+
+        return `${prompt.substring(0, 100)}_${optionsString}`;
+      }
+    };
   }
 
   // Set up retry logic for API calls
@@ -94,9 +144,18 @@ class OpenAIService {
     return error;
   }
 
-  // Generate content using OpenAI API
+  // Generate content using OpenAI API with caching
   async generateContent(prompt, options = {}) {
     try {
+      // Check cache first
+      const cacheKey = this.cache.generateKey(prompt, options);
+      const cachedResponse = this.cache.get(cacheKey);
+
+      if (cachedResponse && !options.skipCache) {
+        console.log('Using cached response for prompt');
+        return cachedResponse;
+      }
+
       const model = options.model || this.config.models.primary;
       const endpoint = this.config.endpoints.completions;
 
@@ -122,11 +181,16 @@ class OpenAIService {
         presence_penalty: options.presencePenalty || 0
       }, requestConfig);
 
-      return {
+      const result = {
         content: response.data.choices[0].message.content,
         usage: response.data.usage,
         model: response.data.model
       };
+
+      // Cache the result
+      this.cache.set(cacheKey, result);
+
+      return result;
     } catch (error) {
       // Try fallback model if primary model fails
       if (this.shouldUseFallbackModel(error) && options.model !== this.config.models.fallback) {
@@ -210,6 +274,177 @@ Use a formal, analytical tone suitable for institutional investors. Make all est
 
 Use the following information:
 {companyData}`
+      },
+
+      // New section: Competitive Analysis
+      competitiveAnalysis: {
+        version: "1.0.0",
+        systemPrompt: "You are a financial analyst specializing in competitive analysis for underwriting reports. Your analyses are data-driven, objective, and provide strategic insights about market positioning.",
+        template: `Generate a detailed competitive analysis for {companyName} in the {industry} industry. Include:
+
+1. Market landscape overview with key players and their market shares
+2. Detailed analysis of 3-5 main competitors with:
+   - Company profiles and key differentiators
+   - Strengths and weaknesses relative to {companyName}
+   - Strategic positioning and recent initiatives
+3. Competitive advantage assessment for {companyName}:
+   - Unique selling propositions
+   - Barriers to entry and moats
+   - Technological or operational advantages
+   - IP and innovation pipeline
+4. Threat analysis:
+   - Direct competitors and their growth trajectories
+   - Potential new entrants and disruption risks
+   - Substitution risks and alternative solutions
+5. Strategic recommendations to enhance competitive positioning
+
+Use a formal, analytical tone and support assertions with data from the following:
+{companyData}`
+      },
+
+      // New section: Financial Projections
+      financialProjections: {
+        version: "1.0.0",
+        systemPrompt: "You are a financial analyst specializing in financial modeling and projections. Your forecasts are well-reasoned, conservative where appropriate, and grounded in historical data and industry benchmarks.",
+        template: `Create detailed financial projections for {companyName} covering the next 3-5 years. Include:
+
+1. Key assumptions driving the forecast model:
+   - Revenue growth rates and drivers
+   - Margin evolution and cost structure
+   - Capital expenditure requirements
+   - Working capital needs
+   - Market condition assumptions
+2. Projected financial statements:
+   - Annual income statement projections
+   - Cash flow forecast highlights
+   - Balance sheet evolution
+3. Key financial metrics forecast:
+   - Year-over-year growth rates
+   - Profitability metrics (gross margin, EBITDA margin, net margin)
+   - Efficiency metrics (asset turnover, inventory days)
+   - Liquidity and solvency metrics
+4. Scenario analysis:
+   - Base case detailed above
+   - Brief overview of upside case (with key drivers)
+   - Brief overview of downside case (with key triggers and impacts)
+5. Funding requirements and capital structure evolution
+
+Base your analysis on the company's historical performance, industry benchmarks, and management guidance from this data:
+{companyData}`
+      },
+
+      // Enhanced investment recommendation section
+      investmentRecommendation: {
+        version: "1.0.1",
+        systemPrompt: "You are a senior financial analyst providing investment recommendations. Your advice is unbiased, risk-aware, and focuses on long-term investment thesis with clear reasoning.",
+        template: `Provide a comprehensive investment recommendation regarding {companyName}, covering:
+
+1. Investment thesis summary:
+   - Core investment merits in bullet points
+   - Key risks and mitigating factors
+   - Value creation opportunities
+
+2. Valuation analysis:
+   - Valuation methodology used
+   - Key valuation drivers
+   - Multiple ranges relative to peers
+   - Fair value estimate with sensitivity factors
+
+3. Return potential:
+   - Expected IRR over 3-5 year horizon
+   - Sources of return (multiple expansion, EBITDA growth, debt reduction)
+   - Downside protection and loss potential in adverse scenario
+
+4. Investment recommendation:
+   - Clear recommendation (Buy/Hold/Sell) with conviction level
+   - Investment time horizon
+   - Suitable investor profile
+   - Position sizing guidance
+
+5. Key metrics to monitor:
+   - Trigger points for reassessment
+   - Warning signals that could change the thesis
+
+Use a formal, analytical tone and base your recommendation on the following data:
+{companyData}`
+      },
+
+      // New section: Management Analysis
+      managementAnalysis: {
+        version: "1.0.0",
+        systemPrompt: "You are a financial analyst with expertise in evaluating management teams. Your assessment is objective, focused on track record, and examines leadership capability and alignment with company strategy.",
+        template: `Conduct a thorough analysis of the management team at {companyName}, including:
+
+1. Leadership team overview:
+   - Profiles of key executives (CEO, CFO, COO, CTO)
+   - Career trajectory and relevant experience
+   - Industry expertise and domain knowledge
+   - Notable achievements and past performance
+
+2. Governance assessment:
+   - Board composition and independence
+   - Committee structure and effectiveness
+   - Alignment with shareholder interests
+   - Governance policies and transparency
+
+3. Execution capability:
+   - Track record of meeting stated objectives
+   - Strategic decision-making history
+   - Crisis management capability
+   - Innovation and adaptation ability
+
+4. Compensation and incentives:
+   - Executive compensation structure
+   - Alignment with company performance
+   - Equity ownership by management
+   - Long-term vs. short-term incentive balance
+
+5. Succession planning and team depth:
+   - Key person risk assessment
+   - Bench strength and succession plans
+   - Recent executive turnover and implications
+   - Leadership development practices
+
+Provide an objective, evidence-based assessment using the following information:
+{companyData}`
+      },
+
+      // New section: Valuation Analysis
+      valuationAnalysis: {
+        version: "1.0.0",
+        systemPrompt: "You are a valuation specialist with expertise in private company valuations. Your analysis is thorough, employs multiple methodologies, and clearly outlines key assumptions and sensitivities.",
+        template: `Perform a comprehensive valuation analysis for {companyName}, including:
+
+1. Valuation summary:
+   - Enterprise value range
+   - Key value drivers
+   - Most appropriate valuation methodologies for this company
+   - Confidence level in the valuation
+
+2. Comparable company analysis:
+   - Selected peer group with rationale
+   - Key trading multiples (EV/Revenue, EV/EBITDA, etc.)
+   - Premium/discount justification
+   - Implied valuation range
+
+3. Discounted cash flow analysis:
+   - Key assumptions (growth rate, margin evolution, terminal value)
+   - WACC calculation and components
+   - Free cash flow projections summary
+   - Implied valuation and sensitivity to key inputs
+
+4. Transaction comparable analysis:
+   - Relevant M&A transactions in the sector
+   - Transaction multiples and trends
+   - Implied valuation range based on precedent transactions
+
+5. Additional methodologies as appropriate:
+   - Sum-of-the-parts analysis
+   - LBO analysis
+   - Asset-based valuation
+
+Use a formal, analytical tone and base your analysis on the following information:
+{companyData}`
       }
     };
 
@@ -222,12 +457,14 @@ Use the following information:
 
     // Replace template variables with actual data
     const templateVariables = {
-      companyName: companyData.name || 'the company',
-      companyDescription: companyData.description || 'private company',
-      foundingYear: companyData.foundingYear || 'N/A',
-      headquarters: companyData.headquarters || 'N/A',
-      employeeCount: companyData.employeeCount || 'N/A',
-      fundingStatus: companyData.fundingStatus || 'N/A',
+      companyName: companyData.company?.name || 'the company',
+      companyDescription: companyData.company?.description || 'private company',
+      foundingYear: companyData.company?.foundingYear || 'N/A',
+      headquarters: companyData.company?.headquarters || 'N/A',
+      employeeCount: companyData.company?.employees || 'N/A',
+      industry: companyData.company?.industry || 'N/A',
+      fundingStatus: companyData.financials?.funding !== 'N/A' ? 
+                     `with ${companyData.financials?.funding?.display || 'undisclosed'} funding` : 'privately funded',
       investmentHighlights: companyData.investmentHighlights || 'market position, growth potential, and competitive advantages',
       financialMetrics: companyData.financialMetrics || 'revenue, profitability, and cash flow',
       companyData: JSON.stringify(companyData, null, 2) || '{}'
@@ -302,8 +539,12 @@ Use the following information:
       companyOverview: 0.4,
       marketAnalysis: 0.5,
       financialAnalysis: 0.2,
+      financialProjections: 0.2,
       riskAssessment: 0.3,
-      investmentRecommendation: 0.3
+      investmentRecommendation: 0.3,
+      competitiveAnalysis: 0.4,
+      managementAnalysis: 0.3,
+      valuationAnalysis: 0.2
     };
 
     return temperatureSettings[sectionType] || 0.3;
@@ -316,8 +557,12 @@ Use the following information:
       companyOverview: 2000,
       marketAnalysis: 1500,
       financialAnalysis: 1500,
+      financialProjections: 1800,
       riskAssessment: 1000,
-      investmentRecommendation: 800
+      investmentRecommendation: 1200,
+      competitiveAnalysis: 1800,
+      managementAnalysis: 1500,
+      valuationAnalysis: 1500
     };
 
     return tokenSettings[sectionType] || 1500;

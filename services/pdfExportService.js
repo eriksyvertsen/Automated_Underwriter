@@ -1,4 +1,5 @@
 // services/pdfExportService.js
+
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
@@ -7,6 +8,7 @@ class PDFExportService {
   constructor() {
     this.tempDir = path.join(os.tmpdir(), 'report-exports');
     this.initPromise = this.init();
+    this.themeStyles = this.initThemeStyles();
   }
 
   async init() {
@@ -22,9 +24,128 @@ class PDFExportService {
   }
 
   /**
+   * Initialize theme style definitions
+   */
+  initThemeStyles() {
+    return {
+      standard: {
+        primaryColor: '#2a5885',
+        secondaryColor: '#f8f9fa',
+        headingFont: 'Arial, sans-serif',
+        bodyFont: 'Arial, sans-serif',
+        fontSize: '16px',
+        lineHeight: '1.6',
+        headerBg: '#f8f9fa',
+        footerBg: '#f8f9fa',
+        tableHeaderBg: '#f2f2f2',
+        tableBorderColor: '#ddd',
+        metricColor: '#2a5885',
+        riskHighColor: '#d9534f',
+        riskMediumColor: '#f0ad4e',
+        riskLowColor: '#5cb85c',
+        fontStyles: ''
+      },
+      modern: {
+        primaryColor: '#3498db',
+        secondaryColor: '#f9fbfd',
+        headingFont: 'Segoe UI, Arial, sans-serif',
+        bodyFont: 'Segoe UI, Arial, sans-serif',
+        fontSize: '16px',
+        lineHeight: '1.7',
+        headerBg: '#ffffff',
+        footerBg: '#ffffff',
+        tableHeaderBg: '#f5f9fc',
+        tableBorderColor: '#e1e5ea',
+        metricColor: '#3498db',
+        riskHighColor: '#e74c3c',
+        riskMediumColor: '#f39c12',
+        riskLowColor: '#2ecc71',
+        fontStyles: 'h1, h2, h3, h4, h5 { font-weight: 300; }'
+      },
+      classic: {
+        primaryColor: '#00467f',
+        secondaryColor: '#f5f5f5',
+        headingFont: 'Georgia, serif',
+        bodyFont: 'Georgia, serif',
+        fontSize: '16px',
+        lineHeight: '1.6',
+        headerBg: '#f5f5f5',
+        footerBg: '#f5f5f5',
+        tableHeaderBg: '#e5e5e5',
+        tableBorderColor: '#cccccc',
+        metricColor: '#00467f',
+        riskHighColor: '#9e2a2b',
+        riskMediumColor: '#e09f3e',
+        riskLowColor: '#335c67',
+        fontStyles: 'h1, h2, h3, h4, h5 { font-family: Georgia, serif; }'
+      },
+      dark: {
+        primaryColor: '#61dafb',
+        secondaryColor: '#282c34',
+        headingFont: 'Arial, sans-serif',
+        bodyFont: 'Arial, sans-serif',
+        fontSize: '16px',
+        lineHeight: '1.6',
+        headerBg: '#333333',
+        footerBg: '#333333',
+        tableHeaderBg: '#444444',
+        tableBorderColor: '#555555',
+        metricColor: '#61dafb',
+        riskHighColor: '#ff6b6b',
+        riskMediumColor: '#feca57',
+        riskLowColor: '#1dd1a1',
+        fontStyles: 'body { color: #e1e1e1; background-color: #282c34; }',
+        inverseTables: true
+      }
+    };
+  }
+
+  /**
    * Generate HTML content for a report
    */
   generateReportHTML(report) {
+    // Get theme based on customization settings
+    const theme = report.customization?.theme || 'standard';
+    const themeStyle = this.themeStyles[theme] || this.themeStyles.standard;
+
+    // Get customization options
+    const includeTOC = report.customization?.includeTOC !== false; // Default to true
+    const includeVisualizations = report.customization?.includeVisualizations !== false; // Default to true
+
+    // Apply section order from customization if available
+    let orderedSections = [...report.sections];
+    if (report.customization?.sectionOrder && report.customization.sectionOrder.length > 0) {
+      const orderedSectionTypes = report.customization.sectionOrder;
+
+      // Create a map for quick lookup of section position
+      const positionMap = new Map();
+      orderedSectionTypes.forEach((type, index) => {
+        positionMap.set(type, index);
+      });
+
+      // Sort sections based on the position map
+      orderedSections.sort((a, b) => {
+        const posA = positionMap.has(a.type) ? positionMap.get(a.type) : 999;
+        const posB = positionMap.has(b.type) ? positionMap.get(b.type) : 999;
+        return posA - posB;
+      });
+    }
+
+    // Generate table of contents if enabled
+    let tableOfContents = '';
+    if (includeTOC && orderedSections.length > 0) {
+      tableOfContents = `
+        <div class="table-of-contents">
+          <h2>Table of Contents</h2>
+          <ol>
+            ${orderedSections.map((section, index) => `
+              <li><a href="#section-${section.id}">${section.title}</a></li>
+            `).join('')}
+          </ol>
+        </div>
+      `;
+    }
+
     // Create HTML structure with proper styling
     const html = `
       <!DOCTYPE html>
@@ -35,53 +156,95 @@ class PDFExportService {
         <title>${report.companyName} - Underwriting Report</title>
         <style>
           body {
-            font-family: 'Arial', sans-serif;
-            line-height: 1.6;
+            font-family: ${themeStyle.bodyFont};
+            line-height: ${themeStyle.lineHeight};
+            font-size: ${themeStyle.fontSize};
             color: #333;
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
           }
+
+          ${themeStyle.fontStyles}
+
+          h1, h2, h3, h4, h5 {
+            font-family: ${themeStyle.headingFont};
+            color: ${themeStyle.primaryColor};
+          }
+
           .report-header {
             text-align: center;
             margin-bottom: 40px;
             padding-bottom: 20px;
             border-bottom: 1px solid #ccc;
+            background-color: ${themeStyle.headerBg};
+            padding: 20px;
+            border-radius: 5px;
           }
+
           .report-title {
             font-size: 28px;
             margin-bottom: 10px;
+            color: ${themeStyle.primaryColor};
           }
+
           .report-subtitle {
             font-size: 18px;
             color: #666;
           }
+
           .report-meta {
             margin-top: 20px;
             font-size: 14px;
             color: #777;
           }
+
+          .table-of-contents {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: ${themeStyle.secondaryColor};
+            border-radius: 5px;
+          }
+
+          .table-of-contents h2 {
+            margin-top: 0;
+          }
+
+          .table-of-contents ol {
+            padding-left: 20px;
+          }
+
+          .table-of-contents a {
+            color: ${themeStyle.primaryColor};
+            text-decoration: none;
+          }
+
           .section {
             margin-bottom: 40px;
             page-break-inside: avoid;
           }
+
           .section-title {
             font-size: 22px;
             margin-bottom: 15px;
-            color: #2a5885;
+            color: ${themeStyle.primaryColor};
             border-bottom: 1px solid #eee;
             padding-bottom: 5px;
           }
+
           .section-content {
             font-size: 16px;
           }
+
           .section-content p {
             margin-bottom: 15px;
           }
+
           .section-content ul, .section-content ol {
             margin-bottom: 15px;
             padding-left: 20px;
           }
+
           .footer {
             margin-top: 40px;
             padding-top: 20px;
@@ -89,22 +252,33 @@ class PDFExportService {
             text-align: center;
             font-size: 12px;
             color: #999;
+            background-color: ${themeStyle.footerBg};
+            padding: 20px;
+            border-radius: 5px;
           }
+
           table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            background-color: ${themeStyle.inverseTables ? '#333' : '#fff'};
+            color: ${themeStyle.inverseTables ? '#fff' : '#333'};
           }
+
           table, th, td {
-            border: 1px solid #ddd;
+            border: 1px solid ${themeStyle.tableBorderColor};
           }
+
           th, td {
             padding: 12px;
             text-align: left;
           }
+
           th {
-            background-color: #f2f2f2;
+            background-color: ${themeStyle.tableHeaderBg};
+            color: ${themeStyle.inverseTables ? '#fff' : '#333'};
           }
+
           .metrics-container {
             display: flex;
             flex-wrap: wrap;
@@ -112,47 +286,58 @@ class PDFExportService {
             margin-bottom: 20px;
             justify-content: space-between;
           }
+
           .metric-box {
-            border: 1px solid #ddd;
+            border: 1px solid ${themeStyle.tableBorderColor};
             border-radius: 5px;
             padding: 15px;
             min-width: 150px;
-            background-color: #f9f9f9;
+            background-color: ${themeStyle.secondaryColor};
             flex-grow: 1;
             text-align: center;
+            color: ${themeStyle.inverseTables ? '#fff' : '#333'};
           }
+
           .metric-title {
             font-size: 14px;
             color: #666;
             margin-bottom: 5px;
           }
+
           .metric-value {
             font-size: 24px;
             font-weight: bold;
-            color: #2a5885;
+            color: ${themeStyle.metricColor};
           }
+
           .metric-desc {
             font-size: 12px;
             color: #888;
             margin-top: 5px;
           }
+
           .risk-high {
-            color: #d9534f;
+            color: ${themeStyle.riskHighColor};
           }
+
           .risk-medium {
-            color: #f0ad4e;
+            color: ${themeStyle.riskMediumColor};
           }
+
           .risk-low {
-            color: #5cb85c;
+            color: ${themeStyle.riskLowColor};
           }
+
           @media print {
             body {
               padding: 0;
               font-size: 12pt;
             }
+
             .section {
               page-break-inside: avoid;
             }
+
             .page-break {
               page-break-before: always;
             }
@@ -170,7 +355,9 @@ class PDFExportService {
           </div>
         </div>
 
-        ${this.renderSections(report.sections)}
+        ${tableOfContents}
+
+        ${this.renderSections(orderedSections, includeVisualizations)}
 
         <div class="footer">
           <p>This report was generated using AI technology. The information presented is for informational purposes only and should not be considered as financial advice.</p>
@@ -186,19 +373,16 @@ class PDFExportService {
   /**
    * Render all sections of the report in HTML
    */
-  renderSections(sections) {
-    // Sort sections in logical order
-    const orderedSections = this.orderSections(sections);
-
-    return orderedSections.map(section => {
+  renderSections(sections, includeVisualizations = true) {
+    return sections.map(section => {
       // Format content
       const content = this.formatSectionContent(section.content);
 
-      // Add visualizations if available
-      const visualizations = this.renderVisualizations(section);
+      // Add visualizations if available and enabled
+      const visualizations = includeVisualizations ? this.renderVisualizations(section) : '';
 
       return `
-        <div class="section">
+        <div class="section" id="section-${section.id}">
           <h2 class="section-title">${section.title}</h2>
           ${visualizations}
           <div class="section-content">
@@ -207,31 +391,6 @@ class PDFExportService {
         </div>
       `;
     }).join('\n');
-  }
-
-  /**
-   * Order sections in a logical flow
-   */
-  orderSections(sections) {
-    // Define optimal order
-    const sectionOrder = [
-      'executiveSummary',
-      'companyOverview',
-      'managementAnalysis',
-      'marketAnalysis',
-      'competitiveAnalysis',
-      'financialAnalysis',
-      'valuationAnalysis',
-      'riskAssessment',
-      'investmentRecommendation'
-    ];
-
-    // Sort based on the predefined order
-    return [...sections].sort((a, b) => {
-      const indexA = sectionOrder.indexOf(a.type);
-      const indexB = sectionOrder.indexOf(b.type);
-      return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
-    });
   }
 
   /**
