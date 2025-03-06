@@ -1,6 +1,6 @@
 // tests/setup.js
 const dotenv = require('dotenv');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
 // Mock the Replit Database
@@ -128,7 +128,7 @@ async function setupTestData(db) {
   // Create test user
   const usersCollection = db.collection('users');
   const testUser = {
-    _id: db.command({ convertToPOJO: true }).ObjectId('60d21b4667d0d8992e610c85'),
+    _id: new ObjectId('60d21b4667d0d8992e610c85'),
     email: 'test@example.com',
     passwordHash: '$2a$10$jAJY9cMUTPe.Gz6FVRq02uOfG1vyqbB5.82xNXzKgdKLYMX21riOi', // password123
     name: 'Test User',
@@ -142,7 +142,7 @@ async function setupTestData(db) {
   // Create test report
   const reportsCollection = db.collection('reports');
   const testReport = {
-    _id: db.command({ convertToPOJO: true }).ObjectId('60d21b4667d0d8992e610c86'),
+    _id: new ObjectId('60d21b4667d0d8992e610c86'),
     userId: '60d21b4667d0d8992e610c85',
     companyName: 'Test Company',
     createdAt: new Date(),
@@ -181,17 +181,6 @@ jest.mock('bcryptjs', () => {
     compare: jest.fn(async (password, hash) => {
       // For testing, consider 'wrong-password' as invalid
       return password !== 'wrong-password';
-    })
-  };
-});
-
-// Mock MongoDB ObjectId
-jest.mock('mongodb', () => {
-  const actual = jest.requireActual('mongodb');
-  return {
-    ...actual,
-    ObjectId: jest.fn((str) => {
-      return { toString: () => str || 'mock-object-id' };
     })
   };
 });
