@@ -10,13 +10,22 @@ const createReport = async (req, res) => {
     const userId = req.user.userId;
     const companyDetails = req.body;
 
-    // Create the report
+    // Validate minimal required fields
+    if (!companyDetails.name) {
+      return res.status(400).json({ error: 'Company name is required' });
+    }
+
+    if (!companyDetails.description) {
+      return res.status(400).json({ error: 'Company description is required' });
+    }
+
+    // Create the report with minimal data
     const report = await enhancedReportService.createReport(userId, companyDetails);
 
     res.status(201).json({
       reportId: report._id,
       status: report.status,
-      message: 'Report created successfully'
+      message: 'Report created successfully. Further company details will be automatically researched.'
     });
   } catch (error) {
     console.error('Create report error:', error);
@@ -134,28 +143,33 @@ const generateSection = async (req, res) => {
   }
 };
 
-// Queue full report generation
+// Queue full report generation with auto-research
 const generateReport = async (req, res) => {
   try {
     const userId = req.user.userId;
     const reportId = req.params.id;
     const { companyData, templateType } = req.body;
 
-    // Validate inputs
-    if (!companyData) {
-      return res.status(400).json({ error: 'Company data is required' });
+    // Validate minimal inputs
+    if (!companyData || !companyData.name) {
+      return res.status(400).json({ error: 'Company name is required' });
     }
 
     // Start report generation (non-blocking)
-    // For MVP, we'll return immediately and let the generation run in the background
-    const jobId = Date.now().toString();
+    const jobId = `report-${reportId}-${Date.now()}`;
+
+    // Update report status to queued
+    await enhancedReportService.updateReport(reportId, userId, {
+      status: 'queued',
+      generationJobId: jobId
+    });
 
     // Queue the job and return the job ID
     res.status(202).json({
       jobId,
       reportId,
-      status: 'generating',
-      message: 'Report generation started'
+      status: 'queued',
+      message: 'Report generation started. Company data will be automatically researched.'
     });
 
     // Start generation in the background

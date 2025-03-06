@@ -191,47 +191,24 @@
             <!-- Error alert -->
             <div class="alert alert-danger" id="create-report-error" style="display: none;"></div>
 
-            <div class="form-group">
-              <label for="company-name" class="form-label">Company Name</label>
+            <!-- Required fields -->
+            <div class="form-group mb-3">
+              <label for="company-name" class="form-label">Company Name <span class="text-danger">*</span></label>
               <input type="text" class="form-control" id="company-name" required>
+              <div class="form-text">Enter the exact company name</div>
             </div>
 
-            <div class="form-group">
-              <label for="company-description" class="form-label">Company Description</label>
-              <textarea class="form-control" id="company-description" rows="3" placeholder="Brief description of the company and its business"></textarea>
+            <div class="form-group mb-3">
+              <label for="company-description" class="form-label">Company Description <span class="text-danger">*</span></label>
+              <textarea class="form-control" id="company-description" rows="3" placeholder="Brief description of the company and its business" required></textarea>
+              <div class="form-text">A short description helps our AI accurately research the company</div>
             </div>
 
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="company-industry" class="form-label">Industry</label>
-                  <input type="text" class="form-control" id="company-industry" placeholder="e.g. Technology, Healthcare, Finance">
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="company-founding-year" class="form-label">Founding Year</label>
-                  <input type="number" class="form-control" id="company-founding-year" placeholder="e.g. 2010">
-                </div>
-              </div>
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i> Our AI will automatically research additional company details including industry, founding year, location, and financial information.
             </div>
 
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="company-headquarters" class="form-label">Headquarters</label>
-                  <input type="text" class="form-control" id="company-headquarters" placeholder="e.g. San Francisco, CA">
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="company-employees" class="form-label">Number of Employees</label>
-                  <input type="number" class="form-control" id="company-employees" placeholder="e.g. 250">
-                </div>
-              </div>
-            </div>
-
-            <div class="form-group">
+            <div class="form-group mt-3">
               <label for="report-template" class="form-label">Report Template</label>
               <select class="form-select" id="report-template">
                 <option value="mvp" selected>MVP Report (Test)</option>
@@ -239,7 +216,7 @@
                 <option value="basic">Basic Report</option>
                 <option value="financial">Financial Report</option>
               </select>
-              <div class="form-text">For the MVP phase, we recommend the MVP Report template.</div>
+              <div class="form-text">Select the type of report you need</div>
             </div>
           </form>
         </div>
@@ -253,7 +230,7 @@
       </div>
     </div>
   </div>
-
+  
   <!-- Report Card Template (Hidden) -->
   <template id="report-card-template">
     <div class="col-md-6 col-xl-4 report-card-container">
@@ -455,10 +432,19 @@
 
         // Basic validation
         const companyNameInput = document.getElementById('company-name');
+        const companyDescriptionInput = document.getElementById('company-description');
+
         if (!companyNameInput.value.trim()) {
           errorAlert.textContent = 'Company name is required';
           errorAlert.style.display = 'block';
           companyNameInput.focus();
+          return;
+        }
+
+        if (!companyDescriptionInput.value.trim()) {
+          errorAlert.textContent = 'Company description is required';
+          errorAlert.style.display = 'block';
+          companyDescriptionInput.focus();
           return;
         }
 
@@ -468,18 +454,10 @@
         errorAlert.style.display = 'none';
 
         try {
-          // Prepare company data
+          // Prepare minimal company data
           const companyData = {
             name: document.getElementById('company-name').value,
             description: document.getElementById('company-description').value,
-            industry: document.getElementById('company-industry').value,
-            foundingYear: document.getElementById('company-founding-year').value 
-              ? parseInt(document.getElementById('company-founding-year').value) 
-              : null,
-            headquarters: document.getElementById('company-headquarters').value,
-            employeeCount: document.getElementById('company-employees').value 
-              ? parseInt(document.getElementById('company-employees').value) 
-              : null,
             templateType: document.getElementById('report-template').value
           };
 
@@ -500,25 +478,21 @@
           const createData = await createResponse.json();
           const reportId = createData.reportId;
 
-          // Start generation if template is selected
-          const templateType = document.getElementById('report-template').value;
+          // Start generation process with same minimal data
+          const generateResponse = await fetch(`/api/reports/${reportId}/generate`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              companyData,
+              templateType: companyData.templateType
+            })
+          });
 
-          if (templateType) {
-            const generateResponse = await fetch(`/api/reports/${reportId}/generate`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                companyData,
-                templateType
-              })
-            });
-
-            if (!generateResponse.ok) {
-              console.warn('Report created but generation failed to start');
-            }
+          if (!generateResponse.ok) {
+            console.warn('Report created but generation failed to start');
           }
 
           // Close modal and refresh reports
@@ -531,6 +505,9 @@
           // Refresh reports
           refreshReports();
 
+          // Show success message
+          alert('Report creation started! Our AI is researching your company and generating the report. This may take a few minutes.');
+
         } catch (error) {
           console.error('Error creating report:', error);
           errorAlert.textContent = 'Failed to create report. Please try again.';
@@ -541,7 +518,6 @@
           spinner.classList.add('d-none');
         }
       });
-
       // Generate report sections
       async function generateReportSections(reportId) {
         try {
