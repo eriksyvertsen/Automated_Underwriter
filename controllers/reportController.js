@@ -1,4 +1,6 @@
-const reportService = require('../services/reportService');
+// controllers/reportController.js
+const enhancedReportService = require('../services/enhancedReportService');
+const dataService = require('../services/dataService');
 const { ApiError, asyncHandler } = require('../utils/errorHandler');
 const { validationSchemas, validateBody } = require('../utils/validation');
 
@@ -9,7 +11,7 @@ const createReport = async (req, res) => {
     const companyDetails = req.body;
 
     // Create the report
-    const report = await reportService.createReport(userId, companyDetails);
+    const report = await enhancedReportService.createReport(userId, companyDetails);
 
     res.status(201).json({
       reportId: report._id,
@@ -28,7 +30,7 @@ const getReports = async (req, res) => {
     const userId = req.user.userId;
 
     // Get all reports for the user
-    const reports = await reportService.getReportsByUser(userId);
+    const reports = await enhancedReportService.getReportsByUser(userId);
 
     res.status(200).json({ reports });
   } catch (error) {
@@ -44,7 +46,7 @@ const getReport = async (req, res) => {
     const reportId = req.params.id;
 
     // Get the report
-    const report = await reportService.getReportById(reportId, userId);
+    const report = await enhancedReportService.getReportById(reportId, userId);
 
     res.status(200).json({ report });
   } catch (error) {
@@ -64,7 +66,7 @@ const updateReport = async (req, res) => {
     const updates = req.body;
 
     // Update the report
-    const updatedReport = await reportService.updateReport(reportId, userId, updates);
+    const updatedReport = await enhancedReportService.updateReport(reportId, userId, updates);
 
     res.status(200).json({ report: updatedReport });
   } catch (error) {
@@ -83,7 +85,7 @@ const deleteReport = async (req, res) => {
     const reportId = req.params.id;
 
     // Delete the report
-    const result = await reportService.deleteReport(reportId, userId);
+    const result = await enhancedReportService.deleteReport(reportId, userId);
 
     res.status(200).json({ message: 'Report deleted successfully' });
   } catch (error) {
@@ -111,12 +113,15 @@ const generateSection = async (req, res) => {
       return res.status(400).json({ error: 'Company data is required' });
     }
 
+    // Normalize company data
+    const normalizedData = await dataService.normalizeCompanyData(companyData);
+
     // Generate the section
-    const section = await reportService.generateReportSection(
+    const section = await enhancedReportService.generateReportSection(
       reportId,
       userId,
       sectionType,
-      companyData
+      normalizedData
     );
 
     res.status(200).json({ section });
@@ -154,7 +159,7 @@ const generateReport = async (req, res) => {
     });
 
     // Start generation in the background
-    reportService.queueReportGeneration(reportId, userId, companyData, templateType)
+    enhancedReportService.generateFullReport(reportId, userId, companyData, templateType)
       .catch(error => {
         console.error('Background report generation error:', error);
       });
@@ -171,7 +176,7 @@ const getGenerationStatus = async (req, res) => {
     const reportId = req.params.id;
 
     // Check the status
-    const status = await reportService.checkGenerationStatus(reportId, userId);
+    const status = await enhancedReportService.checkGenerationStatus(reportId, userId);
 
     res.status(200).json(status);
   } catch (error) {
