@@ -32,6 +32,16 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Route for viewing a specific report
+app.get('/reports/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'report.html'));
+});
+
+// Route for editing a specific report
+app.get('/reports/:id/edit', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'report-edit.html'));
+});
+
 // Error handling middleware
 app.use(errorHandler);
 
