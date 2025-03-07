@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - AI Underwriting Reports</title>
+  <title>Dashboard - AI Investment Memos</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body {
@@ -14,10 +14,12 @@
     }
     .report-card {
       height: 100%;
-      transition: transform 0.2s;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
     }
     .report-card:hover {
       transform: translateY(-5px);
+      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
     }
     .status-badge {
       font-size: 0.8rem;
@@ -230,7 +232,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Report Card Template (Hidden) -->
   <template id="report-card-template">
     <div class="col-md-6 col-xl-4 report-card-container">
@@ -399,6 +401,21 @@
               card.querySelector('.delete-report').addEventListener('click', function(e) {
                 e.preventDefault();
                 deleteReport(report._id);
+              });
+
+              // Make the entire card clickable
+              const reportCard = card.querySelector('.report-card');
+              reportCard.addEventListener('click', function(e) {
+                // Only navigate if the click didn't happen on the dropdown button or menu
+                if (!e.target.closest('.dropdown')) {
+                  window.location.href = `/reports/${report._id}`;
+                }
+              });
+
+              // Prevent dropdown clicks from triggering card click
+              const dropdown = card.querySelector('.dropdown');
+              dropdown.addEventListener('click', function(e) {
+                e.stopPropagation();
               });
 
               // Add card to grid
