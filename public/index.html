@@ -3,56 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI-Powered Underwriting Report Generator</title>
+  <title>AI Report Generator</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    .hero-section {
-      padding: 5rem 0;
-      background-color: #f8f9fa;
-    }
-    .feature-icon {
-      font-size: 2.5rem;
-      color: #0d6efd;
-      margin-bottom: 1rem;
-    }
-    .feature-card {
-      padding: 2rem;
-      border-radius: 0.5rem;
-      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-      height: 100%;
-      transition: transform 0.3s;
-    }
-    .feature-card:hover {
-      transform: translateY(-5px);
-    }
-    .cta-section {
-      padding: 4rem 0;
-      background-color: #0d6efd;
-      color: white;
-    }
-    .footer {
-      padding: 2rem 0;
-      background-color: #343a40;
-      color: white;
-    }
-  </style>
+  <link href="/css/angellist-style.css" rel="stylesheet">
 </head>
 <body>
   <!-- Navigation -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container">
-      <a class="navbar-brand" href="/">AI Underwriting Reports</a>
+      <a class="navbar-brand" href="/">AI Reports</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav ms-auto">
-          <li class="nav-item">
-            <a class="nav-link" href="#features">Features</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="#how-it-works">How It Works</a>
-          </li>
           <li class="nav-item">
             <a class="nav-link btn btn-primary text-white px-3" href="/login.html">Log In</a>
           </li>
@@ -66,11 +30,10 @@
     <div class="container">
       <div class="row align-items-center">
         <div class="col-lg-6">
-          <h1 class="display-4 fw-bold mb-4">Generate Professional Underwriting Reports in Minutes</h1>
-          <p class="lead mb-4">Our AI-powered platform transforms your company data into comprehensive, professional-grade underwriting reports for private companies.</p>
+          <h1 class="display-4 fw-bold mb-4">AI-powered reports in minutes</h1>
+          <p class="lead mb-4">Transform company data into professional investment reports.</p>
           <div class="d-grid gap-2 d-md-flex justify-content-md-start">
-            <a href="/register.html" class="btn btn-primary btn-lg px-4 me-md-2">Get Started</a>
-            <a href="#features" class="btn btn-outline-secondary btn-lg px-4">Learn More</a>
+            <a href="/register.html" class="btn btn-primary btn-lg px-4">Get Started</a>
           </div>
         </div>
         <div class="col-lg-6">
@@ -84,35 +47,28 @@
   <section class="py-5" id="features">
     <div class="container">
       <div class="text-center mb-5">
-        <h2 class="fw-bold">Powerful Features</h2>
-        <p class="lead">Everything you need to create detailed underwriting reports</p>
+        <h2 class="fw-bold">Key Features</h2>
       </div>
       <div class="row g-4">
         <div class="col-md-4">
           <div class="feature-card">
-            <div class="feature-icon">
-              <i class="bi bi-robot"></i>🤖
-            </div>
-            <h3>AI-Powered Analysis</h3>
-            <p>Leverage OpenAI's advanced models to generate comprehensive, professional-grade reports automatically.</p>
+            <div class="feature-icon">🤖</div>
+            <h3>AI Analysis</h3>
+            <p>Advanced models generate professional-grade reports automatically.</p>
           </div>
         </div>
         <div class="col-md-4">
           <div class="feature-card">
-            <div class="feature-icon">
-              <i class="bi bi-graph-up"></i>📊
-            </div>
+            <div class="feature-icon">📊</div>
             <h3>Financial Insights</h3>
-            <p>Get detailed financial analysis, risk assessments, and investment recommendations based on company data.</p>
+            <p>Detailed financial analysis, risk assessments, and recommendations.</p>
           </div>
         </div>
         <div class="col-md-4">
           <div class="feature-card">
-            <div class="feature-icon">
-              <i class="bi bi-file-earmark-text"></i>📄
-            </div>
+            <div class="feature-icon">📄</div>
             <h3>Custom Reports</h3>
-            <p>Edit, customize, and export your reports in multiple formats, including PDF and DOCX.</p>
+            <p>Edit, customize, and export in multiple formats.</p>
           </div>
         </div>
       </div>
@@ -120,52 +76,46 @@
   </section>
 
   <!-- How It Works Section -->
-  <section class="py-5 bg-light" id="how-it-works">
+  <section class="py-5" id="how-it-works">
     <div class="container">
       <div class="text-center mb-5">
         <h2 class="fw-bold">How It Works</h2>
-        <p class="lead">Simple steps to generate your underwriting report</p>
       </div>
       <div class="row">
         <div class="col-md-3 text-center">
-          <div class="rounded-circle bg-primary text-white d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
+          <div class="rounded-circle bg-primary d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
             <h3 class="m-0">1</h3>
           </div>
-          <h4>Enter Company Details</h4>
-          <p>Provide basic information about the company you're analyzing.</p>
+          <h4>Enter Details</h4>
         </div>
         <div class="col-md-3 text-center">
-          <div class="rounded-circle bg-primary text-white d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
+          <div class="rounded-circle bg-primary d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
             <h3 class="m-0">2</h3>
           </div>
-          <h4>AI Generates Report</h4>
-          <p>Our system processes the information and generates a comprehensive report.</p>
+          <h4>AI Generation</h4>
         </div>
         <div class="col-md-3 text-center">
-          <div class="rounded-circle bg-primary text-white d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
+          <div class="rounded-circle bg-primary d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
             <h3 class="m-0">3</h3>
           </div>
           <h4>Review & Edit</h4>
-          <p>Review the generated content and make any necessary edits or customizations.</p>
         </div>
         <div class="col-md-3 text-center">
-          <div class="rounded-circle bg-primary text-white d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
+          <div class="rounded-circle bg-primary d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
             <h3 class="m-0">4</h3>
           </div>
-          <h4>Export & Share</h4>
-          <p>Export your finished report in your preferred format and share it with stakeholders.</p>
+          <h4>Export</h4>
         </div>
       </div>
     </div>
   </section>
 
   <!-- CTA Section -->
-  <section class="cta-section">
+  <section class="py-5 bg-primary">
     <div class="container">
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center">
-          <h2 class="fw-bold mb-4">Ready to streamline your underwriting process?</h2>
-          <p class="lead mb-4">Join our platform today and start generating professional reports in minutes.</p>
+          <h2 class="fw-bold mb-4">Ready to transform your underwriting?</h2>
           <a href="/register.html" class="btn btn-light btn-lg px-4">Sign Up Now</a>
         </div>
       </div>
@@ -175,27 +125,8 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <div class="row">
-        <div class="col-md-4">
-          <h5>AI Underwriting Reports</h5>
-          <p>Transforming financial analysis with AI technology.</p>
-        </div>
-        <div class="col-md-4">
-          <h5>Quick Links</h5>
-          <ul class="list-unstyled">
-            <li><a href="/" class="text-white">Home</a></li>
-            <li><a href="#features" class="text-white">Features</a></li>
-            <li><a href="#how-it-works" class="text-white">How It Works</a></li>
-            <li><a href="/login.html" class="text-white">Log In</a></li>
-          </ul>
-        </div>
-        <div class="col-md-4">
-          <h5>Contact</h5>
-          <p>Need help? <a href="mailto:support@example.com" class="text-white">Contact us</a></p>
-        </div>
-      </div>
-      <div class="text-center mt-4">
-        <p>&copy; 2023 AI Underwriting Reports. All rights reserved.</p>
+      <div class="text-center">
+        <p>&copy; 2023 AI Reports</p>
       </div>
     </div>
   </footer>
