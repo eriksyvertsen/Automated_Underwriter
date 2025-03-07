@@ -77,20 +77,10 @@ const restoreBackup = asyncHandler(async (req, res) => {
   }
 });
 
-// Add to module.exports
-module.exports = {
-  // ... existing exports
-  getHealthCheck,
-  getSystemMetrics,
-  listBackups,
-  createBackup,
-  restoreBackup
-};
-
 /**
  * Get system metrics
  */
-const getSystemMetrics = asyncHandler(async (req, res) => {
+const getSystemMetricsData = asyncHandler(async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.role !== 'admin') {
@@ -522,7 +512,11 @@ function formatUptime(seconds) {
 }
 
 module.exports = {
+  getHealthCheck,
   getSystemMetrics,
+  listBackups,
+  createBackup,
+  restoreBackup,
   getSystemHealth,
   getUsageData,
   getJobQueueStatus,

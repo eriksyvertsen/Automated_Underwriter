@@ -1,6 +1,5 @@
 // services/healthCheckService.js
 
-const mongoose = require('mongoose');
 const os = require('os');
 const fs = require('fs').promises;
 const { getCollection } = require('../config/db');

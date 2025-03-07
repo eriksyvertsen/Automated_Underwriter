@@ -826,52 +826,54 @@ class EnhancedReportService {
     return templates[templateType] || templates.standard;
   }
 
-  // Submit feedback on report quality
-  const submitFeedback = async (req, res) => {
+  /**
+   * Add feedback to a report
+   */
+  async addReportFeedback(reportId, userId, feedback) {
     try {
-      const userId = req.user.userId;
-      const reportId = req.params.id;
-      const { rating, feedback, sectionId } = req.body;
+      // Get the report first to ensure the user has access
+      const report = await this.getReportById(reportId, userId);
 
-      // Validate inputs
-      if (!rating || rating < 1 || rating > 5) {
-        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
-      }
+      // Ensure the service is initialized
+      const collection = await this.ensureInitialized();
 
-      // Get the report
-      const report = await enhancedReportService.getReportById(reportId, userId);
+      // Convert string ID to ObjectId if needed
+      const objectId = typeof reportId === 'string' ? new ObjectId(reportId) : reportId;
 
-      // Add feedback
-      const result = await enhancedReportService.addReportFeedback(
-        reportId, 
-        userId, 
-        {
-          rating,
-          feedback,
-          sectionId,
-          timestamp: new Date()
+      // Create a new feedback object with ID
+      const feedbackWithId = {
+        ...feedback,
+        id: new ObjectId().toString(),
+        userId,
+        reportId: reportId.toString()
+      };
+
+      // Add feedback to the report
+      const result = await collection.updateOne(
+        { _id: objectId, userId: userId },
+        { 
+          $push: { feedback: feedbackWithId },
+          $set: { updatedAt: new Date() }
         }
       );
 
-      res.status(200).json({ 
-        message: 'Feedback submitted successfully',
-        feedbackId: result.feedbackId
-      });
-    } catch (error) {
-      console.error('Submit feedback error:', error);
-      if (error.message.includes('not found')) {
-        return res.status(404).json({ error: error.message });
+      if (result.matchedCount === 0) {
+        throw new Error('Report not found or not authorized');
       }
-      res.status(500).json({ error: 'Failed to submit feedback' });
-    }
-  };
 
-  // Add to module.exports
-  module.exports = {
-    // ... existing exports
-    submitFeedback
-  };
-  
+      // Invalidate cache
+      reportCache.invalidate(`${reportId}-${userId}`);
+
+      return { 
+        success: true,
+        feedbackId: feedbackWithId.id
+      };
+    } catch (error) {
+      console.error('Add report feedback error:', error);
+      throw error;
+    }
+  }
+
   /**
    * Check the status of a report generation
    */

@@ -195,9 +195,6 @@ const submitFeedback = async (req, res) => {
       return res.status(400).json({ error: 'Rating must be between 1 and 5' });
     }
 
-    // Get the report
-    const report = await enhancedReportService.getReportById(reportId, userId);
-
     // Add feedback
     const result = await enhancedReportService.addReportFeedback(
       reportId, 
@@ -221,12 +218,6 @@ const submitFeedback = async (req, res) => {
     }
     res.status(500).json({ error: 'Failed to submit feedback' });
   }
-};
-
-// Add to module.exports
-module.exports = {
-  // ... existing exports
-  submitFeedback
 };
 
 // Check report generation status
@@ -253,5 +244,6 @@ module.exports = {
   deleteReport,
   generateSection,
   generateReport,
+  submitFeedback,
   getGenerationStatus
 };
