@@ -826,6 +826,52 @@ class EnhancedReportService {
     return templates[templateType] || templates.standard;
   }
 
+  // Submit feedback on report quality
+  const submitFeedback = async (req, res) => {
+    try {
+      const userId = req.user.userId;
+      const reportId = req.params.id;
+      const { rating, feedback, sectionId } = req.body;
+
+      // Validate inputs
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+      }
+
+      // Get the report
+      const report = await enhancedReportService.getReportById(reportId, userId);
+
+      // Add feedback
+      const result = await enhancedReportService.addReportFeedback(
+        reportId, 
+        userId, 
+        {
+          rating,
+          feedback,
+          sectionId,
+          timestamp: new Date()
+        }
+      );
+
+      res.status(200).json({ 
+        message: 'Feedback submitted successfully',
+        feedbackId: result.feedbackId
+      });
+    } catch (error) {
+      console.error('Submit feedback error:', error);
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to submit feedback' });
+    }
+  };
+
+  // Add to module.exports
+  module.exports = {
+    // ... existing exports
+    submitFeedback
+  };
+  
   /**
    * Check the status of a report generation
    */

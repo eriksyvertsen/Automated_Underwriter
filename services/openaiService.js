@@ -2,6 +2,9 @@
 
 const axios = require('axios');
 
+const promptTemplateService = require('./promptTemplateService');
+
+
 class OpenAIService {
   constructor() {
     this.config = {

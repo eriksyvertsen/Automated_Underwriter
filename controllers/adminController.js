@@ -5,6 +5,87 @@ const { ApiError, asyncHandler } = require('../utils/errorHandler');
 const openaiService = require('../services/openaiService');
 const queueService = require('../services/queueService');
 const os = require('os');
+const healthCheckService = require('../services/healthCheckService');
+const backupService = require('../services/backupService');
+
+// Get enhanced health check
+const getHealthCheck = asyncHandler(async (req, res) => {
+  try {
+    const health = await healthCheckService.getHealthStatus();
+    res.status(200).json(health);
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({ error: 'Failed to get health check' });
+  }
+});
+
+// Get system metrics
+const getSystemMetrics = asyncHandler(async (req, res) => {
+  try {
+    const metrics = healthCheckService.getCurrentMetrics();
+    res.status(200).json(metrics);
+  } catch (error) {
+    console.error('System metrics error:', error);
+    res.status(500).json({ error: 'Failed to get system metrics' });
+  }
+});
+
+// List backups
+const listBackups = asyncHandler(async (req, res) => {
+  try {
+    const backups = await backupService.listBackups();
+    res.status(200).json(backups);
+  } catch (error) {
+    console.error('List backups error:', error);
+    res.status(500).json({ error: 'Failed to list backups' });
+  }
+});
+
+// Create backup
+const createBackup = asyncHandler(async (req, res) => {
+  try {
+    const { type = 'daily' } = req.body;
+
+    // Validate backup type
+    if (!['daily', 'weekly', 'monthly'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid backup type' });
+    }
+
+    const backup = await backupService.runBackup(type);
+    res.status(200).json(backup);
+  } catch (error) {
+    console.error('Create backup error:', error);
+    res.status(500).json({ error: 'Failed to create backup' });
+  }
+});
+
+// Restore backup
+const restoreBackup = asyncHandler(async (req, res) => {
+  try {
+    const { file } = req.params;
+
+    // Validate file parameter
+    if (!file || !/^backup-(daily|weekly|monthly)-.*\.gz$/.test(file)) {
+      return res.status(400).json({ error: 'Invalid backup file' });
+    }
+
+    const result = await backupService.restoreFromBackup(file);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Restore backup error:', error);
+    res.status(500).json({ error: 'Failed to restore backup' });
+  }
+});
+
+// Add to module.exports
+module.exports = {
+  // ... existing exports
+  getHealthCheck,
+  getSystemMetrics,
+  listBackups,
+  createBackup,
+  restoreBackup
+};
 
 /**
  * Get system metrics

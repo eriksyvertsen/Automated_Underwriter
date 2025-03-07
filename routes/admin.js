@@ -31,4 +31,15 @@ router.get('/activity', standardLimiter, adminController.getRecentActivity);
 // Maintenance actions
 router.post('/maintenance', standardLimiter, adminController.performMaintenance);
 
+// Enhanced health check
+router.get('/health/check', authorize(['admin']), adminController.getHealthCheck);
+
+// System metrics
+router.get('/health/metrics', authorize(['admin']), adminController.getSystemMetrics);
+
+// Backup management
+router.get('/backups', authorize(['admin']), adminController.listBackups);
+router.post('/backups', authorize(['admin']), adminController.createBackup);
+router.post('/backups/restore/:file', authorize(['admin']), adminController.restoreBackup);
+
 module.exports = router;

@@ -96,4 +96,10 @@ router.get('/templates/:templateType',
   customizationController.getTemplatePreview
 );
 
+// Submit feedback on report quality
+router.post('/:id/feedback', 
+  standardLimiter, 
+  reportController.submitFeedback
+);
+
 module.exports = router;

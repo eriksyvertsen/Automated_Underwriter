@@ -17,6 +17,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Add performance middleware
+const { trackApiPerformance } = require('./middleware/performanceMiddleware');
+app.use(trackApiPerformance);
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const reportRoutes = require('./routes/reports');
@@ -29,7 +33,10 @@ app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  const health = {
+  const healthCheckService = require('./services/healthCheckService');
+
+  // Get basic health info for public endpoint
+  const basicHealth = {
     status: 'ok',
     uptime: Math.floor(process.uptime()),
     timestamp: Date.now(),
@@ -48,7 +55,35 @@ app.get('/health', (req, res) => {
     }
   };
 
-  res.status(200).json(health);
+  res.status(200).json(basicHealth);
+});
+
+// Initialize backup service
+const backupService = require('./services/backupService');
+
+// Add recovery middleware for unexpected errors
+const recoverFromUnexpectedErrors = (error) => {
+  // Log the error with the error tracking service
+  const errorTrackingService = require('./services/errorTrackingService');
+  errorTrackingService.trackError(error, { source: 'uncaughtException' });
+
+  // Try to clean up resources if possible
+
+  // In a production environment, you might want to implement 
+  // a graceful shutdown here, but for development we'll keep it running
+  console.error('Recovered from unexpected error:', error);
+};
+
+// Handle uncaught exceptions with recovery
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  recoverFromUnexpectedErrors(error);
+});
+
+// Handle unhandled promise rejections with recovery
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  recoverFromUnexpectedErrors(reason);
 });
 
 // Basic route for the root path
@@ -102,7 +137,8 @@ app.use((req, res, next) => {
 });
 
 // Error handling middleware
-app.use(errorHandler);
+const globalErrorHandler = require('./middleware/globalErrorHandler');
+app.use(globalErrorHandler);
 
 // Database connection and server start
 async function startServer() {
