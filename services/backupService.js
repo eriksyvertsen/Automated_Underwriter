@@ -46,10 +46,13 @@ class BackupService {
         fs.mkdir(path.join(this.backupDir, 'monthly'), { recursive: true })
       ]);
 
-      // Schedule backups
-      this.scheduleBackups();
-
       console.log('Backup service initialized successfully');
+
+      // Delay scheduling backups to ensure database connections are established
+      setTimeout(() => {
+        this.scheduleBackups();
+        console.log('Backup scheduling started');
+      }, 15000); // Wait 15 seconds before starting backup scheduling
     } catch (error) {
       console.error('Error initializing backup service:', error);
     }
@@ -68,12 +71,12 @@ class BackupService {
     // Check if monthly backup is needed
     setInterval(() => this.checkAndRunBackup('monthly'), 24 * 60 * 60 * 1000); // Check every day
 
-    // Run initial checks
+    // Run initial checks with additional delay to ensure DB is connected
     setTimeout(() => {
       this.checkAndRunBackup('daily');
       this.checkAndRunBackup('weekly');
       this.checkAndRunBackup('monthly');
-    }, 5000); // Wait 5 seconds after startup
+    }, 30000); // Wait 30 seconds after scheduling starts
   }
 
   /**
@@ -113,15 +116,17 @@ class BackupService {
       const filename = `backup-${type}-${timestamp}.gz`;
       const filepath = path.join(this.backupDir, type, filename);
 
-      // Run the database backup
-      // For MongoDB, we'd use mongodump
-      // For Replit DB, we'll create a JSON export
-
+      // Try MongoDB backup first, fall back to Replit DB if it fails
       if (process.env.MONGODB_URI) {
-        // MongoDB backup
-        await this.backupMongoDB(filepath);
+        try {
+          await this.backupMongoDB(filepath);
+        } catch (error) {
+          console.error(`Error backing up MongoDB:`, error);
+          console.log('Falling back to Replit DB backup...');
+          await this.backupReplitDB(filepath);
+        }
       } else {
-        // Replit DB backup
+        // Use Replit DB backup if MongoDB URI is not set
         await this.backupReplitDB(filepath);
       }
 
@@ -144,33 +149,33 @@ class BackupService {
    * Backup MongoDB database
    */
   async backupMongoDB(filepath) {
-    // In a production environment, we'd use mongodump
-    // For Replit environment, we'll use mongoexport for simplicity
-
     const mongoUri = process.env.MONGODB_URI;
     if (!mongoUri) throw new Error('MONGODB_URI is not set');
 
     try {
-      // Get collection names
-      const { getCollection } = require('../config/db');
-      const usersCollection = await getCollection('users');
-      const db = usersCollection.dbName;
+      // Get direct access to the database
+      const { connectMongoDB } = require('../config/db');
+      const db = await connectMongoDB();
 
-      // Get list of collections
-      const collections = await usersCollection.db.listCollections().toArray();
-      const collectionNames = collections.map(c => c.name);
+      if (!db) {
+        throw new Error('Failed to connect to MongoDB');
+      }
 
       // Create a directory for this backup
       const backupDir = filepath.replace('.gz', '');
       await fs.mkdir(backupDir, { recursive: true });
 
+      // Get list of collections
+      const collections = await db.listCollections().toArray();
+      const collectionNames = collections.map(c => c.name);
+
       // Export each collection
       for (const collection of collectionNames) {
         const outputFile = path.join(backupDir, `${collection}.json`);
 
-        // Using mongoexport (requires mongodump to be installed)
-        // This is simplified and would need to be adapted for Replit environment
-        await execPromise(`mongoexport --uri="${mongoUri}" --collection=${collection} --out=${outputFile}`);
+        // Direct export of collection data
+        const data = await db.collection(collection).find({}).toArray();
+        await fs.writeFile(outputFile, JSON.stringify(data, null, 2), 'utf8');
       }
 
       // Compress the backup
@@ -178,6 +183,8 @@ class BackupService {
 
       // Remove the temporary directory
       await execPromise(`rm -rf ${backupDir}`);
+
+      console.log(`MongoDB backup completed: ${filepath}`);
     } catch (error) {
       console.error('Error backing up MongoDB:', error);
       throw error;
