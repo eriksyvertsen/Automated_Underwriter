@@ -1,4 +1,4 @@
-// Add this to public/js/markdownParser.js
+// Updated markdownParser.js with empty header fix
 
 /**
  * Simple Markdown parser for report content
@@ -27,10 +27,15 @@ class MarkdownParser {
     html = html.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
     html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
 
-    // Handle headers (# Header)
-    html = html.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+    // Handle headers with content (# Header)
+    // This regex requires at least one character after the # symbols
+    html = html.replace(/^### ([\s\S]+?)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## ([\s\S]+?)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# ([\s\S]+?)$/gm, '<h1>$1</h1>');
+
+    // Handle empty headers or standalone # symbols
+    // Replace with a non-breaking space to maintain proper structure
+    html = html.replace(/^#+\s*$/gm, '');
 
     // Handle bullet lists
     html = html.replace(/^\* (.*?)$/gm, '<li>$1</li>');
